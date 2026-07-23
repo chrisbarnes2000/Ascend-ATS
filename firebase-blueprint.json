@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Base authentication and settings document",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "accountType": { "type": "string", "enum": ["jobSeeker", "company", "staffingFirm"] },
+        "profileCompleted": { "type": "boolean" },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "autoApply": { "type": "boolean" },
+            "matchThreshold": { "type": "number" },
+            "notifications": { "type": "boolean" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "accountType", "createdAt"]
+    },
+    "JobSeekerProfile": {
+      "title": "Job Seeker Profile",
+      "description": "Detailed professional profile for job seekers",
+      "type": "object",
+      "properties": {
+        "personalInfo": { "type": "object" },
+        "professionalSummary": { "type": "string" },
+        "targetRole": { "type": "string" },
+        "targetSalary": { "type": "number" },
+        "workExperience": { "type": "array" },
+        "education": { "type": "array" },
+        "skills": { "type": "array" },
+        "resumes": { "type": "array" },
+        "targetBenefits": { "type": "array" },
+        "parsedData": { "type": "object" }
+      }
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Company profile and settings",
+      "type": "object",
+      "properties": {
+        "ownerUserId": { "type": "string" },
+        "name": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "industry": { "type": "string" },
+        "size": { "type": "string" }
+      }
+    },
+    "Job": {
+      "title": "Job Posting",
+      "description": "Job advertisement details",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "requirements": { "type": "string" },
+        "parsedCriteria": { "type": "object" },
+        "status": { "type": "string", "enum": ["active", "inactive", "filled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Application": {
+      "title": "Job Application",
+      "description": "Records an application from a seeker to a job",
+      "type": "object",
+      "properties": {
+        "jobId": { "type": "string" },
+        "seekerId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "status": { "type": "string", "enum": ["applied", "viewed", "interviewing", "offered", "rejected"] },
+        "appliedAt": { "type": "string", "format": "date-time" },
+        "method": { "type": "string", "enum": ["auto", "one-click", "manual"] },
+        "communications": { "type": "array" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Top-level user metadata"
+    },
+    "users/{userId}/profiles/main": {
+      "schema": "JobSeekerProfile",
+      "description": "Private profile data for job seekers"
+    },
+    "companies/{companyId}": {
+      "schema": "Company",
+      "description": "Company information"
+    },
+    "jobs/{jobId}": {
+      "schema": "Job",
+      "description": "Public job postings"
+    },
+    "applications/{applicationId}": {
+      "schema": "Application",
+      "description": "Application records tracking job seeker progress"
+    }
+  }
+}

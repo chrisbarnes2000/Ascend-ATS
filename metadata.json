@@ -1,0 +1,6 @@
+{
+  "name": "Ascend ATS",
+  "description": "A job seeker-first Applicant Tracking System with intelligent auto-matching, master profiles, and real-time application tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

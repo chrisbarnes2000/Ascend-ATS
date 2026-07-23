@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // User profiles and metadata
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || (request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3']);
+      
+      // Profiles and any other subcollections under a user
+      match /profiles/{profileId} {
+        allow read: if isOwner(userId) || (resource != null && resource.data.privacy != null && resource.data.privacy.isPublic == true);
+        allow write: if isOwner(userId) || (request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3']);
+      }
+      
+      // If there are other subcollections, we can restrict them
+      match /{otherSub=**} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) || (request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3']);
+      }
+    }
+
+    // Collection Group rule for Candidate Search
+    match /{path=**}/profiles/{profileId} {
+      allow read: if isSignedIn();
+    }
+
+    // Companies
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.ownerUserId == request.auth.uid || request.resource.data.ownerUserId == request.auth.uid);
+      allow delete: if isSignedIn() && (request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3']);
+    }
+
+    // Job Postings
+    match /jobs/{jobId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); 
+    }
+
+    // Applications
+    match /applications/{applicationId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.seekerId == request.auth.uid;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // Role Clarification & Info Requests
+    match /jobClarificationRequests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn();
+    }
+  }
+}
