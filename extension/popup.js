@@ -1,5 +1,5 @@
 /**
- * Ascend Ingestion Bridge - Role-Aware Multi-Tier Popup Script
+ * Ascend Ingestion Bridge - Role-Enforced Multi-Tier Popup Script
  */
 
 // Target App URL constants
@@ -23,41 +23,46 @@ const PROMPT_INFO = {
   }
 };
 
+let currentSession = null;
 let currentRole = 'seeker';
 let currentPromptVersion = 'v2';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // 1. Restore state from chrome.storage
-  if (chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['ascendRole', 'ascendPromptVersion', 'ascendProfile'], (res) => {
-      if (res.ascendRole) setRole(res.ascendRole);
-      if (res.ascendPromptVersion) setPromptVersion(res.ascendPromptVersion);
-      if (res.ascendProfile) applyProfileData(res.ascendProfile);
-    });
-  }
-
-  // 2. Query active tabs to see if Ascend is open and fetch session
-  try {
-    const tabs = await chrome.tabs.query({ url: "*://*/*" });
-    const ascendTab = tabs.find(t => t.url && (t.url.includes('ais-') || t.url.includes('localhost:3000')));
-    if (ascendTab) {
-      document.getElementById('conn-status').innerText = 'Connected to Ascend';
-      // Attempt to inspect role from URL hash
-      if (ascendTab.url.includes('#admin')) {
-        setRole('admin');
-      } else if (ascendTab.url.includes('#sourcing') || ascendTab.url.includes('company')) {
-        setRole('recruiter');
-      }
+  // 1. Initial State Check from storage
+  chrome.storage.local.get(['ascendSession', 'ascendPromptVersion'], async (res) => {
+    if (res.ascendPromptVersion) {
+      setPromptVersion(res.ascendPromptVersion);
     }
-  } catch (e) {
-    console.log("Tab query info:", e);
-  }
 
-  // 3. Attach Role Switcher listeners
+    if (res.ascendSession) {
+      renderAuthenticated(res.ascendSession);
+    } else {
+      // Check active tabs for live Ascend session
+      await trySyncSessionFromTabs();
+    }
+  });
+
+  // 2. Setup Login / Signup Gate Listeners
+  document.getElementById('btn-login-gate')?.addEventListener('click', async () => {
+    await trySyncSessionFromTabs(true);
+  });
+
+  document.getElementById('btn-signup-gate')?.addEventListener('click', () => {
+    chrome.tabs.create({ url: `${APP_BASE_URL}/#signup` });
+  });
+
+  document.getElementById('btn-signout')?.addEventListener('click', () => {
+    chrome.storage.local.remove(['ascendSession'], () => {
+      currentSession = null;
+      renderLoggedOut();
+    });
+  });
+
+  // 3. Attach Role Switcher Listeners with RBAC Gates
   document.querySelectorAll('.role-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      const role = btn.getAttribute('data-role');
-      setRole(role);
+      const targetRole = btn.getAttribute('data-role');
+      attemptSwitchRole(targetRole);
     });
   });
 
@@ -69,27 +74,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // 5. Ingestion Button Handlers
-  const handleImport = async (isRequisition = false) => {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab) {
-      chrome.tabs.sendMessage(tab.id, { 
-        action: "TRIGGER_INGEST", 
-        promptVersion: currentPromptVersion,
-        role: currentRole,
-        isRequisition: isRequisition
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          alert("Please refresh the job page to activate the Ascend Bridge on this tab.");
-        } else {
-          window.close();
-        }
-      });
-    }
-  };
+  // 5. Ingestion Button Handlers (strictly checking role)
+  document.getElementById('seeker-import-btn')?.addEventListener('click', () => {
+    handleImport(false);
+  });
 
-  document.getElementById('seeker-import-btn')?.addEventListener('click', () => handleImport(false));
-  document.getElementById('recruiter-import-btn')?.addEventListener('click', () => handleImport(true));
+  document.getElementById('recruiter-import-btn')?.addEventListener('click', () => {
+    if (!canAccessRole('recruiter')) {
+      showAccessDenied('recruiter');
+      return;
+    }
+    handleImport(true);
+  });
 
   // 6. Assess Fit on Current Page
   document.getElementById('seeker-assess-btn')?.addEventListener('click', async () => {
@@ -101,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (tab) {
       box.style.display = 'block';
       scoreEl.innerText = 'Analyzing posting...';
-      detailsEl.innerText = 'Cross-referencing required skills against your master profile.';
+      detailsEl.innerText = 'Cross-referencing required skills against your verified profile.';
 
       chrome.tabs.sendMessage(tab.id, { action: "ASSESS_FIT" }, (res) => {
         if (chrome.runtime.lastError || !res) {
@@ -115,8 +111,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 7. Admin Diagnostics
+  // 7. Admin Diagnostics (Gated)
   document.getElementById('admin-diag-btn')?.addEventListener('click', async () => {
+    if (!canAccessRole('admin')) {
+      showAccessDenied('admin');
+      return;
+    }
+
     const term = document.getElementById('admin-terminal');
     term.classList.add('active');
     term.innerHTML = '> Pinging /api/health...<br>';
@@ -130,7 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       term.innerHTML += `> API Status: 200 OK (${latency}ms)<br>`;
       term.innerHTML += `> Gemini 3.8 Engine: ${data.geminiOnline ? 'ONLINE' : 'FALLBACK'}<br>`;
       term.innerHTML += `> Active Tiers: ${data.versions?.map(v => v.id).join(', ')}<br>`;
-      term.innerHTML += `> All ingestion bridges operational.`;
+      term.innerHTML += `> Pipeline verified for admin ${currentSession?.email}.`;
     } catch (e) {
       term.innerHTML += `> Local Engine: Operational (Mock mode enabled)<br>`;
       term.innerHTML += `> Ready for ingestion.`;
@@ -158,11 +159,156 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('link-admin-invites')?.addEventListener('click', () => openAppHash('#admin'));
 });
 
+// Try to read session from an existing Ascend tab or open login
+async function trySyncSessionFromTabs(openIfNotPresent = false) {
+  try {
+    const tabs = await chrome.tabs.query({ url: "*://*/*" });
+    const ascendTab = tabs.find(t => t.url && (t.url.includes('ais-') || t.url.includes('localhost:3000')));
+
+    if (ascendTab) {
+      chrome.scripting?.executeScript({
+        target: { tabId: ascendTab.id },
+        func: () => localStorage.getItem('ascend_auth_session')
+      }, (results) => {
+        if (results && results[0] && results[0].result) {
+          const session = JSON.parse(results[0].result);
+          chrome.storage.local.set({ ascendSession: session });
+          renderAuthenticated(session);
+        } else {
+          if (openIfNotPresent) {
+            chrome.tabs.update(ascendTab.id, { active: true });
+            chrome.tabs.create({ url: `${APP_BASE_URL}/#login` });
+          } else {
+            renderLoggedOut();
+          }
+        }
+      });
+    } else {
+      if (openIfNotPresent) {
+        chrome.tabs.create({ url: `${APP_BASE_URL}/#login` });
+      } else {
+        renderLoggedOut();
+      }
+    }
+  } catch (err) {
+    console.warn("Could not inspect tabs:", err);
+    renderLoggedOut();
+  }
+}
+
+function renderLoggedOut() {
+  document.getElementById('view-logged-out').style.display = 'block';
+  document.getElementById('view-authenticated').style.display = 'none';
+  document.getElementById('btn-signout').style.display = 'none';
+  document.getElementById('conn-status').innerText = 'Sign In Required';
+  document.getElementById('conn-pill').style.background = '#fef2f2';
+  document.getElementById('conn-pill').style.color = '#dc2626';
+}
+
+function renderAuthenticated(session) {
+  currentSession = session;
+  document.getElementById('view-logged-out').style.display = 'none';
+  document.getElementById('view-authenticated').style.display = 'block';
+  document.getElementById('btn-signout').style.display = 'block';
+  document.getElementById('conn-status').innerText = 'Verified';
+  document.getElementById('conn-pill').style.background = '#ecfdf5';
+  document.getElementById('conn-pill').style.color = '#059669';
+
+  // Apply User Profile Info
+  const displayName = session.displayName || session.email?.split('@')[0] || 'Member';
+  document.getElementById('prof-name').innerText = displayName;
+  document.getElementById('prof-avatar').innerText = displayName.charAt(0).toUpperCase();
+
+  const isAdm = Boolean(session.isAdmin || session.email === 'Chris.Barnes.2000@me.com');
+  const isRecruiter = Boolean(session.accountType === 'company' || session.accountType === 'recruiter' || session.accountType === 'staffingFirm');
+
+  // Enforce Locks
+  const lockRecruiter = document.getElementById('lock-recruiter');
+  const lockAdmin = document.getElementById('lock-admin');
+
+  if (isAdm) {
+    lockRecruiter.style.display = 'none';
+    lockAdmin.style.display = 'none';
+    document.getElementById('prof-badge').innerText = 'Platform Architect';
+    document.getElementById('prof-badge').style.background = '#f5f3ff';
+    document.getElementById('prof-badge').style.color = '#7c3aed';
+    document.getElementById('prof-target').innerText = `${session.email} • Full Access`;
+    setRole('admin');
+  } else if (isRecruiter) {
+    lockRecruiter.style.display = 'none';
+    lockAdmin.style.display = 'inline';
+    document.getElementById('prof-badge').innerText = 'Verified Recruiter';
+    document.getElementById('prof-badge').style.background = '#eff6ff';
+    document.getElementById('prof-badge').style.color = '#2563eb';
+    document.getElementById('prof-target').innerText = 'Staffing Partner Workspace';
+    setRole('recruiter');
+  } else {
+    // Job Seeker
+    lockRecruiter.style.display = 'inline';
+    lockAdmin.style.display = 'inline';
+    document.getElementById('prof-badge').innerText = 'Job Seeker';
+    document.getElementById('prof-badge').style.background = '#ecfdf5';
+    document.getElementById('prof-badge').style.color = '#059669';
+    document.getElementById('prof-target').innerText = 'Candidate Matching Active';
+    setRole('seeker');
+  }
+}
+
+function canAccessRole(role) {
+  if (!currentSession) return false;
+  if (currentSession.isAdmin || currentSession.email === 'Chris.Barnes.2000@me.com') return true;
+  if (role === 'seeker') return true;
+  if (role === 'recruiter') {
+    return currentSession.accountType === 'company' || currentSession.accountType === 'recruiter' || currentSession.accountType === 'staffingFirm';
+  }
+  if (role === 'admin') return false;
+  return false;
+}
+
+function attemptSwitchRole(role) {
+  hideAccessDenied();
+
+  if (!canAccessRole(role)) {
+    showAccessDenied(role);
+    return;
+  }
+
+  setRole(role);
+}
+
+function showAccessDenied(role) {
+  const box = document.getElementById('access-denied-box');
+  const title = document.getElementById('access-denied-title');
+  const desc = document.getElementById('access-denied-desc');
+  const actionBtn = document.getElementById('access-denied-btn');
+
+  box.classList.add('active');
+
+  if (role === 'recruiter') {
+    title.innerHTML = '<span>🔒 Recruiter Privilege Required</span>';
+    desc.innerText = 'Your account is verified as a Job Seeker. Requisition import, sourcing engines, and partner pipelines require an authorized Recruiter or Staffing Firm account.';
+    actionBtn.innerText = 'Request Firm Access (#partner-request)';
+    actionBtn.onclick = (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: `${APP_BASE_URL}/#partner-request` });
+    };
+  } else if (role === 'admin') {
+    title.innerHTML = '<span>🔒 Platform Architect Required</span>';
+    desc.innerText = 'Administrative panels, platform seeders, and telemetry diagnostics are restricted exclusively to master platform architects (Chris.Barnes.2000@me.com). Candidate and recruiter accounts cannot access administrative diagnostics.';
+    actionBtn.innerText = 'Open Legal & Privacy Center';
+    actionBtn.onclick = (e) => {
+      e.preventDefault();
+      chrome.tabs.create({ url: `${APP_BASE_URL}/#legal` });
+    };
+  }
+}
+
+function hideAccessDenied() {
+  document.getElementById('access-denied-box')?.classList.remove('active');
+}
+
 function setRole(role) {
   currentRole = role;
-  if (chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ ascendRole: role });
-  }
 
   // Update tabs
   document.querySelectorAll('.role-tab').forEach(t => {
@@ -173,33 +319,11 @@ function setRole(role) {
   document.getElementById('view-seeker').style.display = role === 'seeker' ? 'block' : 'none';
   document.getElementById('view-recruiter').style.display = role === 'recruiter' ? 'block' : 'none';
   document.getElementById('view-admin').style.display = role === 'admin' ? 'block' : 'none';
-
-  // Update badge & target role text
-  const badge = document.getElementById('prof-badge');
-  const target = document.getElementById('prof-target');
-  if (role === 'admin') {
-    badge.innerText = 'Platform Admin';
-    badge.style.background = '#e0f2fe';
-    badge.style.color = '#0284c7';
-    target.innerText = 'System Lead • Full Authority';
-  } else if (role === 'recruiter') {
-    badge.innerText = 'Recruiter Firm';
-    badge.style.background = '#f5f3ff';
-    badge.style.color = '#7c3aed';
-    target.innerText = 'Ascend Talent Partner • Sourcing Active';
-  } else {
-    badge.innerText = 'Candidate';
-    badge.style.background = '#eff6ff';
-    badge.style.color = '#2563eb';
-    target.innerText = 'Senior Systems Engineer';
-  }
 }
 
 function setPromptVersion(ver) {
   currentPromptVersion = ver;
-  if (chrome.storage && chrome.storage.local) {
-    chrome.storage.local.set({ ascendPromptVersion: ver });
-  }
+  chrome.storage.local.set({ ascendPromptVersion: ver });
 
   // Update buttons
   document.querySelectorAll('.prompt-btn').forEach(b => {
@@ -212,11 +336,26 @@ function setPromptVersion(ver) {
   document.getElementById('prompt-desc-text').innerHTML = info.desc;
 }
 
-function applyProfileData(profile) {
-  if (!profile) return;
-  if (profile.fullName) document.getElementById('prof-name').innerText = profile.fullName;
-  if (profile.targetRole) document.getElementById('prof-target').innerText = profile.targetRole;
-  if (profile.skillsCount) {
-    document.getElementById('chk-skills').innerText = `⚡ ${profile.skillsCount} Skills Active`;
+const handleImport = async (isRequisition = false) => {
+  if (!currentSession) {
+    renderLoggedOut();
+    return;
   }
-}
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab) {
+    chrome.tabs.sendMessage(tab.id, { 
+      action: "TRIGGER_INGEST", 
+      promptVersion: currentPromptVersion,
+      role: currentRole,
+      isRequisition: isRequisition,
+      userSession: currentSession
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        alert("Please refresh the job page to activate the Ascend Bridge on this tab.");
+      } else {
+        window.close();
+      }
+    });
+  }
+};

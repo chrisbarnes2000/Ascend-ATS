@@ -4,6 +4,25 @@ This internal engineering log records granular development actions, architecture
 
 ---
 
+## [0.5.25-dev.25] - 2026-09-30
+### Added & Enhanced (ITIL Service Transition - RBAC Authentication Bridge & Role Lockdown)
+- **Extension Authentication Gateway (`extension/popup.html`, `extension/popup.js`)**:
+  - Implemented an enforced **Logged-Out Gateway Screen** that automatically prompts users to sign in to Ascend ATS before granting access to any ingestion or extraction tools.
+  - Added 1-click **"Sign In / Connect Tab"** trigger linking directly to active Ascend session or launching `/#login`.
+  - Added dedicated **"Sign Out"** trigger in popup header that purges cached credentials and locks down extension surfaces.
+- **Strict Role-Based Access Control (RBAC) & Tab Lockout**:
+  - **Job Seeker Role**: Locked Recruiter and Admin tabs with visual lock icons (`🔒`). Attempting to access unauthorized tool suites triggers a high-contrast security warning banner:
+    - *“Recruiter Access Restricted: Your account is verified as a Job Seeker. Requisition import and sourcing engines require an authorized Recruiter or Staffing Firm account.”* Includes a direct action button linking to `#partner-request`.
+  - **Recruiter Role**: Unlocked Recruiter and Seeker tools; locked Platform Administration with master architect requirement.
+  - **Platform Architect (`Chris.Barnes.2000@me.com`)**: Full access across all 3 roles with a distinct `Platform Architect` badge.
+- **Cross-Origin Session Synchronization (`src/hooks/useAuth.tsx`, `extension/content.js`)**:
+  - `useAuth.tsx`: Synchronizes authenticated user metadata (`uid`, `email`, `displayName`, `accountType`, `isAdmin`, `profileCompleted`) into `localStorage['ascend_auth_session']` and dispatches `ascend-auth-change` events on login and logout.
+  - `extension/content.js`: Observes Ascend ATS web app tabs and mirrors active auth tokens into `chrome.storage.local`.
+- **Backend Ingestion Authorization Gate (`server.ts`)**:
+  - In `/api/ingest-job`: Added an RBAC check on `isRequisition`. Requests attempting to ingest employer requisitions from candidate accounts without recruiter or admin credentials are automatically rejected with `HTTP 403 Forbidden`.
+
+---
+
 ## [0.5.25-dev.24] - 2026-09-30
 ### Added & Enhanced (ITIL Service Transition - 3-Tier Prompt Matrix & Role-Aware Extension)
 - **Role-Aware Multi-Tier Chrome Extension (`extension/popup.html`, `extension/popup.js`, `extension/content.js`)**:

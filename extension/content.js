@@ -5,6 +5,45 @@
 (function() {
   console.log("Ascend Ingestion Bridge Active");
 
+  // 1. Session Synchronization on Ascend ATS Web App Pages
+  const isAscendApp = location.host.includes('ais-') || location.host.includes('localhost');
+  if (isAscendApp) {
+    const syncSession = () => {
+      try {
+        const raw = localStorage.getItem('ascend_auth_session');
+        if (raw) {
+          const session = JSON.parse(raw);
+          if (chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({ ascendSession: session });
+          }
+        } else {
+          if (chrome.storage && chrome.storage.local) {
+            chrome.storage.local.remove(['ascendSession']);
+          }
+        }
+      } catch (e) {
+        console.warn("Session sync error:", e);
+      }
+    };
+
+    // Initial sync
+    syncSession();
+
+    // Listen for auth changes dispatched from useAuth.tsx
+    window.addEventListener('ascend-auth-change', (e) => {
+      if (chrome.storage && chrome.storage.local) {
+        if (e.detail) {
+          chrome.storage.local.set({ ascendSession: e.detail });
+        } else {
+          chrome.storage.local.remove(['ascendSession']);
+        }
+      }
+    });
+
+    setInterval(syncSession, 4000);
+    return; // Do not inject job scraper button onto Ascend ATS itself
+  }
+
   // Keep track of the current URL to re-inject when it changes
   let lastUrl = location.href;
   

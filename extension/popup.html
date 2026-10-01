@@ -8,6 +8,7 @@
     :root {
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
+      --slate-950: #020617;
       --slate-900: #0f172a;
       --slate-800: #1e293b;
       --slate-700: #334155;
@@ -17,8 +18,12 @@
       --slate-50: #f8fafc;
       --emerald-600: #059669;
       --emerald-50: #ecfdf5;
+      --rose-600: #e11d48;
+      --rose-50: #fff1f2;
       --amber-600: #d97706;
+      --amber-50: #fffbeb;
       --violet-600: #7c3aed;
+      --violet-50: #f5f3ff;
     }
 
     * {
@@ -75,22 +80,55 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .status-pill {
+    .header-actions {
       display: flex;
       align-items: center;
-      gap: 5px;
-      padding: 4px 8px;
-      background: var(--emerald-50);
-      color: var(--emerald-600);
-      border-radius: 999px;
+      gap: 6px;
+    }
+    .signout-btn {
+      background: none;
+      border: 1px solid var(--slate-200);
+      color: var(--slate-500);
+      padding: 3px 8px;
+      border-radius: 6px;
       font-size: 10px;
       font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
     }
-    .pulse-dot {
-      width: 6px;
-      height: 6px;
-      background: var(--emerald-600);
-      border-radius: 50%;
+    .signout-btn:hover {
+      background: var(--slate-100);
+      color: var(--rose-600);
+      border-color: #fca5a5;
+    }
+
+    /* Logged Out View */
+    .logged-out-card {
+      text-align: center;
+      padding: 24px 12px;
+    }
+    .login-icon-box {
+      width: 48px;
+      height: 48px;
+      background: #eff6ff;
+      color: var(--primary);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px auto;
+    }
+    .logged-out-card h2 {
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      color: var(--slate-900);
+    }
+    .logged-out-card p {
+      font-size: 12px;
+      color: var(--slate-500);
+      margin-bottom: 18px;
+      line-height: 1.5;
     }
 
     /* Role Switcher Tabs */
@@ -99,7 +137,7 @@
       background: var(--slate-100);
       padding: 3px;
       border-radius: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       gap: 2px;
     }
     .role-tab {
@@ -114,14 +152,63 @@
       cursor: pointer;
       transition: all 0.15s ease;
       text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
     }
     .role-tab.active {
       background: #ffffff;
       color: var(--slate-900);
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
-    .role-tab:hover:not(.active) {
-      color: var(--slate-800);
+    .role-tab.locked {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .role-tab.locked:hover {
+      color: var(--rose-600);
+    }
+
+    /* Security Warning / Access Denied Box */
+    .access-denied-box {
+      background: var(--rose-50);
+      border: 1px solid #fecdd3;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 14px;
+      display: none;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .access-denied-box.active {
+      display: block;
+    }
+    .access-denied-header {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--rose-600);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .access-denied-text {
+      font-size: 11px;
+      color: #9f1239;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    .access-denied-action {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 800;
+      color: #ffffff;
+      background: var(--rose-600);
+      padding: 4px 10px;
+      border-radius: 6px;
+      text-decoration: none;
+      cursor: pointer;
     }
 
     /* Profile Card */
@@ -277,7 +364,7 @@
       border-left: 2px solid var(--primary);
     }
 
-    /* Main Action Button */
+    /* Main Action Buttons */
     .action-btn-primary {
       width: 100%;
       display: flex;
@@ -404,6 +491,11 @@
       text-decoration: none;
       font-weight: 700;
     }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
@@ -414,164 +506,217 @@
       <div class="logo">A</div>
       <div class="title-group">
         <h1>Ascend Bridge</h1>
-        <p>Intelligent ATS Ingestion</p>
+        <p id="env-label">Verified Session</p>
       </div>
     </div>
-    <div class="status-pill">
-      <div class="pulse-dot"></div>
-      <span id="conn-status">Cloud Online</span>
+    <div class="header-actions">
+      <button class="signout-btn" id="btn-signout" title="Sign out of Ascend ATS" style="display: none;">Sign Out</button>
+      <div class="status-pill" id="conn-pill" style="display: flex; align-items: center; gap: 5px; padding: 4px 8px; background: var(--emerald-50); color: var(--emerald-600); border-radius: 999px; font-size: 10px; font-weight: 700;">
+        <div style="width: 6px; height: 6px; background: var(--emerald-600); border-radius: 50%;"></div>
+        <span id="conn-status">Online</span>
+      </div>
     </div>
   </div>
 
-  <!-- Role Switcher -->
-  <div class="role-tabs">
-    <button class="role-tab active" data-role="seeker" id="tab-seeker">Seeker</button>
-    <button class="role-tab" data-role="recruiter" id="tab-recruiter">Recruiter</button>
-    <button class="role-tab" data-role="admin" id="tab-admin">Admin</button>
+  <!-- VIEW 1: Logged Out Screen (Authentication Gate) -->
+  <div id="view-logged-out" class="logged-out-card">
+    <div class="login-icon-box">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <h2>Sign in to Ascend ATS</h2>
+    <p>
+      Connect the extension to your Ascend account to verify your role permissions, unlock job ingestion, and protect firm pipelines.
+    </p>
+    <button id="btn-login-gate" class="action-btn-primary" style="background: var(--primary);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>
+      </svg>
+      Sign In / Connect Tab
+    </button>
+    <button id="btn-signup-gate" class="action-btn-secondary">
+      Create New Account
+    </button>
+    <div style="font-size: 10px; color: var(--slate-400); margin-top: 14px;">
+      Candidates: Access personal matching & tracking<br>
+      Recruiters: Ingest requisitions & source candidates
+    </div>
   </div>
 
-  <!-- Profile & Readiness Card -->
-  <div class="profile-card">
-    <div class="profile-header">
-      <div class="profile-info">
-        <div class="avatar" id="prof-avatar">C</div>
-        <div class="profile-names">
-          <h3 id="prof-name">Chris Barnes</h3>
-          <p id="prof-target">Senior Systems Engineer</p>
+  <!-- VIEW 2: Authenticated View -->
+  <div id="view-authenticated" style="display: none;">
+
+    <!-- Role Switcher Tabs (with Lock Status Indicators) -->
+    <div class="role-tabs">
+      <button class="role-tab active" data-role="seeker" id="tab-seeker">
+        <span>Seeker</span>
+      </button>
+      <button class="role-tab" data-role="recruiter" id="tab-recruiter">
+        <span>Recruiter</span>
+        <span class="tab-lock" id="lock-recruiter" style="display: none;">🔒</span>
+      </button>
+      <button class="role-tab" data-role="admin" id="tab-admin">
+        <span>Admin</span>
+        <span class="tab-lock" id="lock-admin" style="display: none;">🔒</span>
+      </button>
+    </div>
+
+    <!-- Security Warning / Access Denied Banner -->
+    <div class="access-denied-box" id="access-denied-box">
+      <div class="access-denied-header" id="access-denied-title">
+        <span>🔒 Access Restricted</span>
+      </div>
+      <div class="access-denied-text" id="access-denied-desc">
+        Your account role does not have authorization for this tool suite.
+      </div>
+      <a class="access-denied-action" id="access-denied-btn" href="#">Request Access</a>
+    </div>
+
+    <!-- Profile & Readiness Card -->
+    <div class="profile-card">
+      <div class="profile-header">
+        <div class="profile-info">
+          <div class="avatar" id="prof-avatar">U</div>
+          <div class="profile-names">
+            <h3 id="prof-name">Candidate Name</h3>
+            <p id="prof-target">Target Discipline</p>
+          </div>
+        </div>
+        <span class="role-badge" id="prof-badge">Verified</span>
+      </div>
+
+      <!-- Completeness bar -->
+      <div class="progress-bar-container">
+        <div class="progress-labels">
+          <span>Profile Readiness</span>
+          <span id="prof-percent">95%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="prof-bar" style="width: 95%"></div>
         </div>
       </div>
-      <span class="role-badge" id="prof-badge">Candidate</span>
-    </div>
 
-    <!-- Completeness bar -->
-    <div class="progress-bar-container">
-      <div class="progress-labels">
-        <span>Profile Completeness</span>
-        <span id="prof-percent">95%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="prof-bar" style="width: 95%"></div>
+      <!-- Status Checks -->
+      <div class="checks-grid">
+        <div class="check-pill ok" id="chk-resume">📄 Resume Ready</div>
+        <div class="check-pill ok" id="chk-skills">⚡ Skills Active</div>
+        <div class="check-pill ok" id="chk-target">🎯 Target Role Set</div>
+        <div class="check-pill ok" id="chk-privacy">🛡️ Firewall Active</div>
       </div>
     </div>
 
-    <!-- Status Checks -->
-    <div class="checks-grid">
-      <div class="check-pill ok" id="chk-resume">📄 Resume Ready</div>
-      <div class="check-pill ok" id="chk-skills">⚡ 12 Skills Active</div>
-      <div class="check-pill ok" id="chk-target">🎯 Target Role Set</div>
-      <div class="check-pill ok" id="chk-privacy">🛡️ Firewall Shield</div>
+    <!-- 3-Tier Prompt Matrix Selector -->
+    <div class="prompt-section">
+      <div class="section-title">
+        <span>AI Ingestion Engine</span>
+        <span id="prompt-latency">~1.2s</span>
+      </div>
+      <div class="prompt-selector">
+        <button class="prompt-btn" data-version="v1" id="pbtn-v1">
+          V1 Fast
+          <span class="tag">Heuristic</span>
+        </button>
+        <button class="prompt-btn active" data-version="v2" id="pbtn-v2">
+          V2 Semantic
+          <span class="tag">Taxonomy</span>
+        </button>
+        <button class="prompt-btn" data-version="v3" id="pbtn-v3">
+          V3 Executive
+          <span class="tag">STAR Prep</span>
+        </button>
+      </div>
+      <div class="prompt-desc" id="prompt-desc-text">
+        <strong>V2 Semantic:</strong> Standardizes skill taxonomy into technical & soft domains with 10-point perks mapping.
+      </div>
     </div>
-  </div>
 
-  <!-- 3-Tier Prompt Matrix Selector -->
-  <div class="prompt-section">
-    <div class="section-title">
-      <span>AI Ingestion Engine</span>
-      <span id="prompt-latency">~1.2s</span>
-    </div>
-    <div class="prompt-selector">
-      <button class="prompt-btn" data-version="v1" id="pbtn-v1">
-        V1 Fast
-        <span class="tag">Heuristic</span>
+    <!-- Role Dynamic Actions Content -->
+    <!-- 1. Seeker View -->
+    <div class="role-view" id="view-seeker">
+      <button id="seeker-import-btn" class="action-btn-primary">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+        </svg>
+        Import to My Applications
       </button>
-      <button class="prompt-btn active" data-version="v2" id="pbtn-v2">
-        V2 Semantic
-        <span class="tag">Taxonomy</span>
+      
+      <button id="seeker-assess-btn" class="action-btn-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="m9 12 2 2 4-4"></path>
+        </svg>
+        Assess Fit on This Page
       </button>
-      <button class="prompt-btn" data-version="v3" id="pbtn-v3">
-        V3 Executive
-        <span class="tag">STAR Prep</span>
+
+      <div class="assessment-box" id="assessment-box">
+        <div class="assessment-score" id="assess-score">92% Match Score</div>
+        <div id="assess-details">Strong alignment with core competencies.</div>
+      </div>
+
+      <div class="section-title" style="margin-top: 10px;">Quick Navigation</div>
+      <div class="quick-links">
+        <a class="quick-link-btn" id="link-apps">My Jobs</a>
+        <a class="quick-link-btn" id="link-analytics">Analytics</a>
+        <a class="quick-link-btn" id="link-profile">Edit Profile</a>
+      </div>
+    </div>
+
+    <!-- 2. Recruiter View -->
+    <div class="role-view" id="view-recruiter" style="display: none;">
+      <button id="recruiter-import-btn" class="action-btn-primary" style="background: var(--violet-600);">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="20" height="14" x="2" y="7" rx="2" ry="2"/>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+        </svg>
+        Import as Employer Requisition
       </button>
-    </div>
-    <div class="prompt-desc" id="prompt-desc-text">
-      <strong>V2 Semantic:</strong> Standardizes skill taxonomy into technical & soft domains with 10-point perks mapping.
-    </div>
-  </div>
 
-  <!-- Role Dynamic Actions Content -->
-  <!-- 1. Seeker View -->
-  <div class="role-view" id="view-seeker">
-    <button id="seeker-import-btn" class="action-btn-primary">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-      </svg>
-      Import Current Job
-    </button>
-    
-    <button id="seeker-assess-btn" class="action-btn-secondary">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"></circle>
-        <path d="m9 12 2 2 4-4"></path>
-      </svg>
-      Assess Fit on This Page
-    </button>
+      <button id="recruiter-source-btn" class="action-btn-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.3-4.3"/>
+        </svg>
+        Source Candidates for Role
+      </button>
 
-    <div class="assessment-box" id="assessment-box">
-      <div class="assessment-score" id="assess-score">92% Match Score</div>
-      <div id="assess-details">Strong alignment with TypeScript, React & distributed systems requirements.</div>
+      <div class="section-title" style="margin-top: 10px;">Firm Shortcuts</div>
+      <div class="quick-links">
+        <a class="quick-link-btn" id="link-rec-dash">Dashboard</a>
+        <a class="quick-link-btn" id="link-rec-sourcing">Sourcing</a>
+        <a class="quick-link-btn" id="link-rec-partner">Partner Kit</a>
+      </div>
     </div>
 
-    <div class="section-title" style="margin-top: 10px;">Quick Navigation</div>
-    <div class="quick-links">
-      <a class="quick-link-btn" id="link-apps">My Jobs</a>
-      <a class="quick-link-btn" id="link-analytics">Analytics</a>
-      <a class="quick-link-btn" id="link-profile">Edit Profile</a>
-    </div>
-  </div>
+    <!-- 3. Admin View -->
+    <div class="role-view" id="view-admin" style="display: none;">
+      <button id="admin-panel-btn" class="action-btn-primary" style="background: #0284c7;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+        Open Admin Control Panel
+      </button>
 
-  <!-- 2. Recruiter View -->
-  <div class="role-view" id="view-recruiter" style="display: none;">
-    <button id="recruiter-import-btn" class="action-btn-primary" style="background: var(--violet-600);">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect width="20" height="14" x="2" y="7" rx="2" ry="2"/>
-        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-      </svg>
-      Import as Requisition
-    </button>
+      <button id="admin-diag-btn" class="action-btn-secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+        Run Pipeline Diagnostics
+      </button>
 
-    <button id="recruiter-source-btn" class="action-btn-secondary">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="m21 21-4.3-4.3"/>
-      </svg>
-      Source Candidates for Role
-    </button>
+      <div class="terminal-box" id="admin-terminal">
+        > Pinging Ascend API health...<br>
+        > Checking Gemini 3.8 Flash quota...<br>
+        > Prompt matrix: V1, V2, V3 active.
+      </div>
 
-    <div class="section-title" style="margin-top: 10px;">Firm Shortcuts</div>
-    <div class="quick-links">
-      <a class="quick-link-btn" id="link-rec-dash">Dashboard</a>
-      <a class="quick-link-btn" id="link-rec-sourcing">Sourcing</a>
-      <a class="quick-link-btn" id="link-rec-partner">Partner Kit</a>
-    </div>
-  </div>
-
-  <!-- 3. Admin View -->
-  <div class="role-view" id="view-admin" style="display: none;">
-    <button id="admin-panel-btn" class="action-btn-primary" style="background: #0284c7;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-      </svg>
-      Open Admin Control Panel
-    </button>
-
-    <button id="admin-diag-btn" class="action-btn-secondary">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-      </svg>
-      Run Pipeline Diagnostics
-    </button>
-
-    <div class="terminal-box" id="admin-terminal">
-      > Pinging Ascend API health...<br>
-      > Checking Gemini 3.8 Flash quota...<br>
-      > Prompt matrix: V1, V2, V3 active.
-    </div>
-
-    <div class="section-title" style="margin-top: 10px;">Admin Actions</div>
-    <div class="quick-links">
-      <a class="quick-link-btn" id="link-admin-panel">Admin (#admin)</a>
-      <a class="quick-link-btn" id="link-admin-companies">Companies</a>
-      <a class="quick-link-btn" id="link-admin-invites">Firm Invites</a>
+      <div class="section-title" style="margin-top: 10px;">Admin Actions</div>
+      <div class="quick-links">
+        <a class="quick-link-btn" id="link-admin-panel">Admin (#admin)</a>
+        <a class="quick-link-btn" id="link-admin-companies">Companies</a>
+        <a class="quick-link-btn" id="link-admin-invites">Firm Invites</a>
+      </div>
     </div>
   </div>
 

@@ -804,9 +804,20 @@ Return ONLY valid JSON.`;
   // Job Ingestion Pipeline Endpoint with 3-Tier Prompt Matrix
   app.post('/api/ingest-job', async (req, res) => {
     try {
-      const { url, pastedText, boardType, promptVersion = 'v1' } = req.body;
+      const { url, pastedText, boardType, promptVersion = 'v1', isRequisition = false, userSession } = req.body;
       if (!url && (!pastedText || !pastedText.trim())) {
         return res.status(400).json({ error: 'Either URL or Pasted Job Text is required' });
+      }
+
+      // RBAC Gate: Verify employer requisition authorization
+      if (isRequisition && userSession) {
+        const isRecruiter = userSession.accountType === 'company' || userSession.accountType === 'recruiter' || userSession.accountType === 'staffingFirm';
+        const isAdmin = userSession.isAdmin || userSession.email === 'Chris.Barnes.2000@me.com';
+        if (!isRecruiter && !isAdmin) {
+          return res.status(403).json({ 
+            error: 'Forbidden: Candidate accounts cannot create employer requisitions. Recruiter or Staffing Firm role required.' 
+          });
+        }
       }
 
       // Fast, 100% accurate, zero-cost Local NLP Parser (Tier V1 Baseline)

@@ -48,11 +48,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
             console.log("User doc found for:", firebaseUser.uid);
-            setAppUser({
+            const appUserData = {
               ...userDoc.data(),
               createdAt: userDoc.data().createdAt?.toDate(),
               lastLogin: userDoc.data().lastLogin?.toDate(),
-            } as AppUser);
+            } as AppUser;
+            setAppUser(appUserData);
+
+            // Mirror session for browser extension bridge
+            const sessionPayload = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName || appUserData.email?.split('@')[0],
+              accountType: appUserData.accountType || 'jobSeeker',
+              isAdmin: firebaseUser.email === 'Chris.Barnes.2000@me.com' || firebaseUser.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1',
+              profileCompleted: appUserData.profileCompleted || false
+            };
+            try {
+              localStorage.setItem('ascend_auth_session', JSON.stringify(sessionPayload));
+              window.dispatchEvent(new CustomEvent('ascend-auth-change', { detail: sessionPayload }));
+            } catch (e) {
+              console.warn("Could not sync session to localStorage:", e);
+            }
           } else {
             console.warn("User doc not found for:", firebaseUser.uid);
             setAppUser(null);
@@ -64,6 +81,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         console.log("No Firebase user detected");
         setAppUser(null);
+        try {
+          localStorage.removeItem('ascend_auth_session');
+          window.dispatchEvent(new CustomEvent('ascend-auth-change', { detail: null }));
+        } catch (e) {}
       }
       setLoading(false);
     });
@@ -246,7 +267,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAppUser(prev => prev ? { ...prev, accountType: type } : null);
   };
 
-  const logout = () => signOut(auth);
+  const logout = async () => {
+    try {
+      localStorage.removeItem('ascend_auth_session');
+      window.dispatchEvent(new CustomEvent('ascend-auth-change', { detail: null }));
+    } catch (e) {}
+    return signOut(auth);
+  };
 
   return (
     <AuthContext.Provider value={{ 
