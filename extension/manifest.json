@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Ascend ATS Ingestion Bridge",
+  "version": "1.0.0",
+  "description": "Ingest LinkedIn and Indeed job postings directly into your Ascend ATS pipeline.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://*.linkedin.com/*",
+    "https://*.indeed.com/*",
+    "https://*.governmentjobs.com/*",
+    "http://localhost:3000/*",
+    "https://ais-dev-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon128.jpg"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.linkedin.com/*",
+        "https://*.indeed.com/*",
+        "https://*.governmentjobs.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "icons": {
+    "128": "icon128.jpg"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

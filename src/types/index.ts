@@ -2,7 +2,7 @@
  * Core Types for Ascend ATS
  */
 
-export type AccountType = 'jobSeeker' | 'company' | 'staffingFirm';
+export type AccountType = 'jobSeeker' | 'company' | 'staffingFirm' | 'recruiter' | 'admin';
 export type ApplicationStatus = 'applied' | 'viewed' | 'interviewing' | 'offered' | 'rejected';
 export type ApplicationMethod = 'auto' | 'one-click' | 'manual';
 export type JobStatus = 'active' | 'inactive' | 'filled';
@@ -17,6 +17,9 @@ export interface AppUser {
   uid: string;
   email: string;
   accountType: AccountType;
+  staffingFirmId?: string;
+  staffingFirmName?: string;
+  staffingRole?: 'admin' | 'recruiter' | 'owner';
   profileCompleted: boolean;
   settings: UserSettings;
   createdAt: Date;
@@ -56,6 +59,7 @@ export interface ProfileSkill {
   subDomain?: string;
   level?: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
   years?: number;
+  credlyUrl?: string;
 }
 
 export interface JobSeekerProfile {
@@ -95,6 +99,37 @@ export interface JobSeekerProfile {
     accommodationDetails?: string;
     shareDeiWithEmployers: boolean;
   };
+}
+
+export interface StaffingFirm {
+  id: string;
+  name: string;
+  ownerId: string;
+  adminEmails: string[];
+  website?: string;
+  logoUrl?: string;
+  description?: string;
+  isVerified: boolean;
+  createdAt: any;
+  updatedAt: any;
+  memberCount: number;
+  specialties: string[];
+}
+
+export interface StaffingInvitation {
+  id: string;
+  email: string;
+  targetFirmName: string;
+  role: 'admin' | 'recruiter' | 'owner';
+  status: 'pending' | 'accepted' | 'expired';
+  invitedByUid: string;
+  invitedByEmail: string;
+  createdAt: any;
+  expiresAt: any;
+  inviteCode: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
 }
 
 export interface Company {
@@ -143,6 +178,8 @@ export interface JobTemplateBenchmark {
   requirements: string;
   salaryMin: number;
   salaryMax: number;
+  jobNumber?: string;
+  department?: string;
   authenticityScore: number;
   avgConversionRate: string;
   appliedCount: number;
@@ -157,6 +194,8 @@ export interface Job {
   title: string;
   description: string;
   requirements: string;
+  jobNumber?: string;
+  department?: string;
   workplaceType?: 'Remote' | 'Hybrid' | 'On-Site';
   location?: string;
   benefits?: string[];

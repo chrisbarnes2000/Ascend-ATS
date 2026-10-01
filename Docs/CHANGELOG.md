@@ -2,6 +2,99 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.25] - 2026-09-21
+### Added & Enhanced
+- **RapportVerse Strategic Bridge Page**: Created `RapportVersePage.tsx` with dedicated hash routing (`#rapportverse` & `#trust-network`) offering deep integration between Ascend ATS and the RapportVerse relationship intelligence platform (`https://rapprt.space`).
+- **Concentric Trust Radar & Dunbar Layers**: Interactive SVG topology radar mapping professional networks across Dunbar 5 (Inner Core), 15 (Strategic Mentors), 50 (Professional Talent), and 150 (Extended Industry).
+- **David Maister Trust Equation Simulator**: Live interactive calculation model evaluating alignment quotient: `TQ = (Credibility + Reliability + Intimacy) / Self-Orientation` with real-time interpretation for candidate/recruiter matching.
+- **Neurodiversity & Double Empathy Hub**: Integrated educational guides highlighting Double Empathy, Sensory Calm, Object Permanence, and the Dobby Border Principle.
+- **Bidirectional Topology Bridge & Exporter**: Instant JSON export engine (`rapportverse-trust-topology.json`), sync simulator, and quick badge generators for external project READMEs.
+- **RapportVerse Partner Implementation Guide**: Created `/Docs/RapportVerse_Bridge_Integration_Guide.md` providing end-to-end data contracts, TypeScript interfaces, webhook request signatures, and deep-link protocols for the RapportVerse engineering team.
+- **Footer & Partner Portal Integration**: Added direct navigation triggers from `Footer.tsx` and `AffiliatesPage.tsx`.
+
+## [0.5.24] - 2026-09-21
+### Added & Enhanced
+- **Public Machine-Readable Files**: Added `llms.txt`, `llm.txt`, and `LLMs.txt` providing structured LLM documentation of the ecosystem, features, and RapportVerse strategic alignment.
+- **Search Engine Crawler Directives**: Added `robots.txt` and `Robot.txt` providing search engine index and security directives.
+- **Standalone Accessible Error HTML Pages**: Added `400.html`, `404.html`, and `500.html` error templates with dark/light mode responsive CSS, WCAG AA contrast, and RapportVerse attribution.
+- **Multi-Device Favicons & PWA Icons**: Generated scalable vector `favicon.svg`, fallback `favicon.ico`, `apple-touch-icon.png` (180x180), `pwa-192x192.png`, `pwa-512x512.png`, and configured `site.webmanifest` linked in `index.html`.
+- **RapportVerse Copyright Attribution**: Adjusted the persistent global `Footer.tsx` copyright to link directly to RapportVerse (`https://rapprt.space`).
+
+## [0.5.23] - 2026-09-08
+### Added & Enhanced
+- **Strategic Partner Display**: Adapted the user's RapportVerse partner portfolio into a premium interactive banner showcase within `AffiliatesPage.tsx`.
+- **One-Click Markdown Copiers**: Added state-driven clipboard utilities allowing users to instantly copy customized partner shields and flat-square badges for RapportVerse.
+- **Verified Partner Badges**: Dynamically displays SVG-based shield representations of RapportVerse partnership affiliations with live external anchors (`https://rapprt.space`).
+
+## [0.5.22] - 2026-09-08
+### Added & Enhanced
+- **Global Persistent Layout Footer**: Created a modular, highly polished `Footer.tsx` that links seamlessly to Workspaces, Partner channels, and the Legal compliance dashboard.
+- **Affiliate Partner Program Page**: Created `AffiliatesPage.tsx` outlining recurring commission guidelines, tracking cookies, program FAQ, and a live Firestore-linked application submission form.
+- **Public Router Integrity**: Configured hash routing for `#affiliates` enabling external partners and search listings to view and apply before logging in.
+
+## [0.5.20] - 2026-09-08
+### Added & Enhanced
+- **Terms of Service & Privacy Policy Center**: Built a unified, highly polished legal routing page (`LegalPage.tsx`) containing legally consistent rules, data security frameworks, cookie notifications, and CCPA/GDPR compliance highlights.
+- **Public Router Support**: Enabled fully public hash routing paths (`#legal`, `#terms`, `#privacy`), making the policies accessible to anyone prior to or during sign-in.
+- **In-App Navigation Integration**: Embedded direct legal compliance statements and interactive triggers under the Google Authentication sign-in flow and within the secure profile dropdown navigation card.
+
+## [0.5.18] - 2026-09-04
+### Added & Enhanced
+- **Scroll Chaining Prevention for Editor Panels**: Applied standard `overscroll-behavior: contain` (`overscroll-contain` class in Tailwind) to both the Role Description and Key Requirements textareas.
+- **Improved UX Stability**: Ensures that scrolling through a long description inside the nested editor remains focused and contained within that block, preventing the outer page viewport from scrolling out of view.
+
+## [0.5.16] - 2026-09-04
+### Added & Enhanced
+- **On-Demand Custom Formatting Re-Run**: Integrated "Auto-Format" action triggers inside the custom editing menu. Users can now apply the Heuristic Styling Engine to the current manually modified description or requirements text block on-the-fly.
+- **Dedicated Formatting API Gateway**: Bound an Express endpoint `/api/ingest-job/heuristic-format` on the backend to dynamically process and return formatted Markdown without modifying database state directly.
+
+## [0.5.14] - 2026-09-04
+### Added & Enhanced
+- **Expanded Section Header Parsing Dictionary**: Upgraded the local Markdown text-formatting engine to recognize a wider range of standard job description sections including:
+  - `PURPOSE` / `Role Purpose` / `Job Purpose`
+  - `ESSENTIAL DUTIES / RESPONSIBILITIES` / `Essential Duties` / `Essential Responsibilities`
+  - `Full job description` / `Description:`
+  - `Education and Experience` / `Education & Experience`
+- **Typographic Section Formatting**: Ensures beautiful capitalization and spacing, converting matched plain text strings into Level-3 Markdown headings (`### Essential Duties / Responsibilities`).
+
+## [0.5.12] - 2026-09-04
+### Added & Enhanced
+- **Interactive Formatting Customizer & Editor**: Introduced a **Customize Formatting** control panel directly inside the job details view. If our automated NLP heuristic pass over-condenses or misinterprets any pasted description, users can edit the structural content (Description and Requirements) manually in high-fidelity Markdown textareas.
+- **Full Original & Formatted Presentation**: Upgraded the details layout to display both the beautifully-formatted **Role Description** and the **Requirements & Qualifications** side-by-side using the rich-text renderer.
+- **Real-Time Cloud Synchronization**: Wired editing states to instantly update Firestore and state context upon clicking **Save Custom Formats**, guaranteeing consistency across app views.
+
+## [0.5.10] - 2026-09-04
+### Added & Enhanced
+- **Raw Text Markdown Formatting & Styling Engine**: Implemented an advanced, deterministic plain-text markdown styling processor in the backend. When candidates paste a plain-text job description, the engine automatically:
+  - Detects common sections (e.g., *About the Role, Qualifications, Key Responsibilities, Benefits*) and transforms them into beautifully capitalized Level 3 headings (`### About The Role`).
+  - Identifies list indicators (e.g., bullet items, dashes, squares) and formats them into standard Markdown bullet lists (`- List Item`).
+  - Translates common text parameters (e.g., *Requirements:, Experience:, Salary:*) into high-contrast bold labels (`**Requirements:**`).
+  - Detects short all-caps category terms and renders them as Level 4 subheadings (`#### COGNITIVE QUALIFICATIONS`).
+
+## [0.5.8] - 2026-09-04
+### Added & Enhanced
+- **High-Fidelity Deterministic Local NLP Parser (First Pass)**: Created a 100% reliable, lightning-fast heuristic text-processing and regex parsing engine on the backend for all ingested job texts and links. Extracts company names, workplace types, city/state locations, exact salary ranges (e.g. $120k-$160k), matching technical skills, and corresponding health/retirement benefits without hitting AI rate limits.
+- **Deep AI Second-Pass Scan Option**: Introduced a highly-styled banner in the core insights drawer prompting candidates to run a deep second pass using Gemini. Clicking **Run Deep AI Scan** requests advanced strategic interview strategies and implicit unstated expectation maps, promoting seamless progression and deep preparation.
+- **Dynamic List Indicator Badges**: Styled distinct labels in the pipeline tracker to show whether an item is processed with **Local NLP** or completed with a **Gemini Deep Scan**.
+
+## [0.5.6] - 2026-09-04
+### Added & Enhanced
+- **Interactive Dual Ingestion Pipeline**: Introduced a highly-scannable two-tab layout separating Job Link/URL Import from Job Description Text Manual Paste. This fully resolves issues with unsubmitted raw text by introducing a dedicated and independent text analyzer submit button.
+- **Login-Gated Platform Warning Callout**: Added a warning dialog highlighting LinkedIn and Indeed anti-scraping blocks, helping users understand why automated extraction might fail and seamlessly steering them towards the highly-accurate Manual Paste option.
+- **Custom Alert & Confirmation Modal Framework**: Designed and integrated fully custom modal components within the React `<AnimatePresence>` tree. This completely replaces standard native browser prompt/alert dialogs with visually cohesive, high-contrast, beautiful confirmation panels.
+- **Robust Endpoint Fallbacks**: Standardized `/api/ingest-job` to safely handle manual job text parsing without demanding a LinkedIn URL parameter.
+
+## [0.5.4] - 2026-09-04
+### Added & Enhanced
+- **Interactive Job Ingestion & AI Copilot Workspace**: Implemented `/src/components/tracker/JobTracker.tsx` allowing candidates to drop job links or raw description text, parse job info via Gemini-3.6-Flash (with robust regex backup), interact with a customized Job Copilot chatbot, and generate printable tailored resumes matching target roles.
+- **Full-Width Dashboard Workspace Integration**: Successfully integrated the `JobTracker` component into `JobSeekerDashboard.tsx` with a dedicated "Job Tracker & AI Copilot" navigation tab.
+- **Advanced Skill Visualizer & Accommodations Mapping**: Completely redesigned `SkillVisualizer.tsx` into a tabbed widget featuring:
+  - *Core Domains*: A Recharts Donut Pie Chart visualizing skill distributions by specialty areas.
+  - *Skills Radar*: A radar chart graphing average competency scores across domains.
+  - *Access Support & Accommodations*: A styled interactive checklist mapping custom physical workspace accommodations based on candidate-specified DEI settings.
+  - *Credentials Grid*: Active hyperlinks pointing to verified badges and credentials on Credly.
+- **Heuristic Skill Sorting & Credly Linking**: Added dynamic, deterministic (non-AI) auto-sorting to `SkillsEditor.tsx` (by alphabetical name, experience years, or competency levels) and linked verified skills out to Credly badges directly in the profile editor.
+
 ## [0.5.3] - 2026-07-21
 ### Changed
 - **Company Profile Lockdown**: Locked core company identification fields in `CompanyManagement.tsx` post-signup, allowing only description and social link edits.
@@ -247,3 +340,16 @@ All notable changes to this project will be documented in this file.
 - **Permission Errors**: Resolved "Missing or insufficient permissions" errors caused by the Firebase Client SDK making unauthenticated queries in the Node.js backend. Migrated the Candidate Search logic and Public Profile document queries directly to the client (`EmployerSourcing.tsx` and `PublicProfile.tsx`), leveraging the natively authenticated `request.auth` context to evaluate Firestore Rules successfully.
 - Fixed email splitting bug causing crash for unauthenticated users.
 - Patched API keys error and restored functionality with safe logic.
+
+## [0.5.4] - 2026-07-23
+### Changed
+- **Skill Editing & Catalog Association**: Refactored the Skills Editor to support direct inline editing of existing skills. Added a robust cascading datalist for skill name autocomplete that automatically associates with the selected Domain and Sub-Domain fields from the Skills Catalog.
+
+## [0.5.5] - 2026-07-23
+### Added
+- **Expanded Skills Catalog**: Replaced the initial tech-only dictionary with a comprehensive dictionary covering multiple industries (Technology, Finance & Accounting, Healthcare & Medicine, Blue Collar & Trades, Education, Legal, and Hospitality) for broader user support.
+- **Skill Auto-Detection**: Implemented `autodetectSkillCategory` utility which locally infers a skill's domain and subdomain in real-time as the user types, and automatically populates the category drop-downs.
+- **Enhance All Skills Rule Engine**: Restored the "Enhance All" functionality using a local rule engine instead of an external API, seamlessly re-categorizing legacy and unrecognized skills using the comprehensive catalog.
+
+### Fixed
+- **Skill Visualizer & Editor Crashes**: Resolved `Uncaught TypeError` crashes by adding robust fallbacks for legacy skill domains (e.g., "Technical") that were missing from the newly expanded `SKILLS_CATALOG`. Ensuring `SkillVisualizer` defaults to an empty array to prevent `reduce` errors when a user's skills are not yet fully populated.

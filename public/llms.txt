@@ -1,0 +1,41 @@
+# Ascend ATS & RapportVerse Ecosystem Documentation
+> Job-Seeker-First Applicant Tracking System & Human Trust Intelligence Platform
+
+## Project Overview
+Ascend ATS is a modern applicant tracking system engineered to bridge candidate empowerment with recruiter clarity. Built in proud partnership with RapportVerse (https://rapprt.space), the platform integrates qualitative trust matching, structured Master Profiles, GDPR-compliant privacy cloaking, and deterministic skills evaluation.
+
+- **Platform Name**: Ascend ATS
+- **Strategic Partner**: RapportVerse (https://rapprt.space)
+- **Primary Domain**: Recruitment, Career Mobility, Human Relational Intelligence, ATS Optimization
+- **Core Architecture**: React 18, Vite, TypeScript, Tailwind CSS, Express (Node.js), Firebase Firestore & Authentication, Gemini API
+
+## Key Features & Capabilities
+1. **Master Profile Builder**: Comprehensive multi-dimensional candidate profile including competencies, volunteer history, work-style preferences, accommodations, and values.
+2. **Deterministic Skills Taxonomy**: Domain-categorized competencies (Technical, Soft Skills, Leadership) with proficiency scoring and verifiable experience tracking.
+3. **Sliding Data Privacy Cloak**: 4-level privacy slider (Level 1: Unrestricted to Level 4: Maximum Cloak) with dynamic employer name and PII redaction.
+4. **Assisted Insights Matching Engine**: Multi-vector alignment scoring comparing salary fit, work modality (Remote/Hybrid/On-site), provided vs. requested benefits, and core vs. preferred skills.
+5. **Requisition Manager & Audit Trail**: Full revision tracking (v1.0, v2.0) with required change justification logging and material shift detection.
+6. **Heuristic Styling Engine**: Automatic normalization of job posting markdown, salary ranges, and standard corporate section headers.
+7. **Legal & Compliance Center**: Publicly accessible Terms of Service and Privacy Policy (`#legal`, `#terms`, `#privacy`) compliant with GDPR and CCPA standards.
+8. **Affiliate Partner Network**: Multi-tier revenue sharing (`#affiliates`) supporting creator and community referrals with real-time Firestore tracking.
+
+## RapportVerse Partnership
+RapportVerse (https://rapprt.space) is a visual-first human relationship and qualitative trust-mapping platform designed for intentional networking and neurodivergent-affirming connection management. Ascend ATS integrates RapportVerse's principles of:
+- Visual-first connection topologies
+- Client-side privacy and GDPR sovereignty
+- Neurodiversity-affirming design patterns and low cognitive friction
+
+## Available Public Routes
+- `/#legal`: Platform Legal Center & Privacy Policy
+- `/#terms`: Terms of Service
+- `/#privacy`: Privacy Policy
+- `/#affiliates`: Affiliate Partner Network & Registration
+- `/#rapportverse` / `/#trust-network`: Interactive RapportVerse Topology Bridge & Trust Simulator
+- `/#companies`: Public Company Directory
+- `/#sourcing`: Talent Sourcing Engine (for verified recruiters)
+- `/llms.txt`: Machine-readable AI model directory
+
+## Contact & Governance
+- **Platform Lead**: Chris Barnes (Chris.Barnes.2000@me.com)
+- **Partner Hub**: https://rapprt.space
+- **Technical Support**: support@ascendats.com

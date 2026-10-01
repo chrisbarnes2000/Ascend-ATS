@@ -1,5 +1,5 @@
 import { useState, useEffect, MouseEvent, FormEvent } from 'react';
-import { collection, onSnapshot, query, where, limit, orderBy, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, limit, orderBy, doc, addDoc, serverTimestamp, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../hooks/useAuth';
 import { useJobMatching, getMatchBreakdown } from '../hooks/useJobMatching';
@@ -10,6 +10,7 @@ import {
   Plus, Loader2, Check, HelpCircle, MessageSquare, X
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { JobTracker } from '../components/tracker/JobTracker';
 
 // Internal Components for Dashboard
 const ApplicationPipeline = ({ applications }: { applications: Application[] }) => {
@@ -480,7 +481,7 @@ export const JobSeekerDashboard = () => {
   const [profile, setProfile] = useState<JobSeekerProfile | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const { matches, loading: matchingLoading } = useJobMatching(profile);
-  const [view, setView] = useState<'matches' | 'pipeline'>('matches');
+  const [view, setView] = useState<'matches' | 'pipeline' | 'tracker'>('matches');
 
   const formatTimeAgo = (createdAt: any) => {
     if (!createdAt) return 'Recently';
@@ -595,6 +596,46 @@ export const JobSeekerDashboard = () => {
     { label: 'Offers', count: applications.filter(a => a.status === 'offered').length, icon: TrendingUp, color: 'text-indigo-500', bg: 'bg-indigo-50' }
   ];
 
+  // Staffing Invitation Acceptance Logic
+  useEffect(() => {
+    const handleInvitation = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const inviteCode = params.get('invite');
+      if (inviteCode && user) {
+        try {
+          const inviteRef = doc(db, 'staffing_invitations', inviteCode);
+          const inviteSnap = await getDocs(query(collection(db, 'staffing_invitations'), where('inviteCode', '==', inviteCode), where('status', '==', 'pending')));
+          
+          if (!inviteSnap.empty) {
+            const inviteDoc = inviteSnap.docs[0];
+            const inviteData = inviteDoc.data();
+            
+            // 1. Update user account type to recruiter or appropriate staffing role
+            await updateDoc(doc(db, 'users', user.uid), {
+              accountType: inviteData.role === 'recruiter' ? 'recruiter' : 'staffingFirm',
+              staffingFirmName: inviteData.targetFirmName,
+              staffingRole: inviteData.role,
+              profileCompleted: false // Force re-wizard for staffing details
+            });
+
+            // 2. Mark invitation as accepted
+            await updateDoc(doc(db, 'staffing_invitations', inviteDoc.id), {
+              status: 'accepted',
+              acceptedByUid: user.uid,
+              acceptedAt: serverTimestamp()
+            });
+
+            alert(`Welcome to ${inviteData.targetFirmName}! Your account has been upgraded to ${inviteData.role}.`);
+            window.location.search = ''; // Clear params
+          }
+        } catch (err) {
+          console.error("Failed to process invitation:", err);
+        }
+      }
+    };
+    handleInvitation();
+  }, [user]);
+
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 w-full md:w-[75vw] max-w-none mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
@@ -628,7 +669,44 @@ export const JobSeekerDashboard = () => {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+      {view === 'tracker' ? (
+        <div className="space-y-8">
+          {/* Header tabs inside tracker view to match theme */}
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex gap-8">
+              <button 
+                onClick={() => setView('matches')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'matches' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Top Matches
+                {view === 'matches' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+              <button 
+                onClick={() => setView('pipeline')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'pipeline' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Application Pipeline
+                {view === 'pipeline' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+              <button 
+                onClick={() => setView('tracker')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'tracker' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Job Tracker & AI Copilot
+                {view === 'tracker' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+            </div>
+          </div>
+          <JobTracker profile={profile} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         {/* Main Content Area */}
         <div className="lg:col-span-2 space-y-8">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -650,6 +728,15 @@ export const JobSeekerDashboard = () => {
               >
                 Application Pipeline
                 {view === 'pipeline' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+              <button 
+                onClick={() => setView('tracker')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'tracker' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Job Tracker & AI Copilot
+                {view === 'tracker' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
               </button>
             </div>
           </div>
@@ -848,6 +935,7 @@ export const JobSeekerDashboard = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

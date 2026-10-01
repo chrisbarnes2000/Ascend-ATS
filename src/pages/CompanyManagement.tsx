@@ -7,7 +7,7 @@ import { db } from '../firebase/config';
 import { Job } from '../types';
 
 export const CompanyManagement = () => {
-  const { user } = useAuth();
+  const { user, appUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingCompany, setSavingCompany] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
@@ -77,8 +77,16 @@ export const CompanyManagement = () => {
       
       // If locked, only allow specific fields
       if (companyProfile.signupComplete) {
-         // This is a simplified check, ideally server-side validation exists
-         // For now, allow description and socials
+         // Standard lock logic
+         // Temp Access Override: Check for specific appUser flags (e.g. from invitation)
+         const canEditLocked = appUser?.staffingRole === 'owner' || appUser?.staffingRole === 'admin';
+         if (!canEditLocked) {
+           delete updateData.companyName;
+           delete updateData.industry;
+           delete updateData.size;
+           delete updateData.website;
+           delete updateData.location;
+         }
       }
       
       await setDoc(profileRef, {
@@ -144,7 +152,7 @@ export const CompanyManagement = () => {
               <input
                 type="text"
                 required
-                disabled={companyProfile.signupComplete}
+                disabled={companyProfile.signupComplete && !(appUser?.staffingRole === 'owner' || appUser?.staffingRole === 'admin')}
                 value={companyProfile.companyName}
                 onChange={e => setCompanyProfile({...companyProfile, companyName: e.target.value})}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
@@ -156,7 +164,7 @@ export const CompanyManagement = () => {
               <input
                 type="text"
                 required
-                disabled={companyProfile.signupComplete}
+                disabled={companyProfile.signupComplete && !(appUser?.staffingRole === 'owner' || appUser?.staffingRole === 'admin')}
                 value={companyProfile.industry}
                 onChange={e => setCompanyProfile({...companyProfile, industry: e.target.value})}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
@@ -169,7 +177,7 @@ export const CompanyManagement = () => {
             <div>
               <label className="block text-sm font-semibold mb-2">Company Size</label>
               <select
-                disabled={companyProfile.signupComplete}
+                disabled={companyProfile.signupComplete && !(appUser?.staffingRole === 'owner' || appUser?.staffingRole === 'admin')}
                 value={companyProfile.size}
                 onChange={e => setCompanyProfile({...companyProfile, size: e.target.value})}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
@@ -185,7 +193,7 @@ export const CompanyManagement = () => {
               <label className="block text-sm font-semibold mb-2">Website URL</label>
               <input
                 type="url"
-                disabled={companyProfile.signupComplete}
+                disabled={companyProfile.signupComplete && !(appUser?.staffingRole === 'owner' || appUser?.staffingRole === 'admin')}
                 value={companyProfile.website}
                 onChange={e => setCompanyProfile({...companyProfile, website: e.target.value})}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
@@ -198,7 +206,7 @@ export const CompanyManagement = () => {
             <label className="block text-sm font-semibold mb-2">Headquarters / Location</label>
             <input
               type="text"
-              disabled={companyProfile.signupComplete}
+              disabled={companyProfile.signupComplete && !(appUser?.staffingRole === 'owner' || appUser?.staffingRole === 'admin')}
               value={companyProfile.location}
               onChange={e => setCompanyProfile({...companyProfile, location: e.target.value})}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"

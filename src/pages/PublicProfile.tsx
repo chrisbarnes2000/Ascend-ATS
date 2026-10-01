@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { JobSeekerProfile } from '../types';
-import { Shield, Slash, Briefcase, MapPin, GraduationCap, Award, Heart, Smile, Clock, Sparkles, Users, Lock, EyeOff, Globe, CheckCircle2 } from 'lucide-react';
+import { Shield, Slash, Briefcase, MapPin, GraduationCap, Award, Heart, Smile, Clock, Sparkles, Users, Lock, EyeOff, Globe, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { RichText } from '../components/profile/RichText';
+import { SkillVisualizer } from '../components/profile/SkillVisualizer';
 
 export function PublicProfile() {
   const { user } = useAuth();
@@ -255,6 +256,11 @@ export function PublicProfile() {
         return (
           <div key="skills" className="animate-in fade-in duration-300">
             <h2 className="text-xl font-bold mb-6 text-slate-900 dark:text-slate-100">Technical Competencies & Skills</h2>
+            
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 mb-8">
+              <SkillVisualizer skills={profile.skills} deiAndAccommodations={profile.deiAndAccommodations} />
+            </div>
+
             <div className="space-y-6">
               {Object.entries(groupedSkills).map(([domain, subDomains]) => (
                 <div key={domain} className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800 rounded-2xl p-5">
@@ -265,10 +271,17 @@ export function PublicProfile() {
                         {subDomain !== 'General' && <h5 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{subDomain}</h5>}
                         <div className="flex flex-wrap gap-2">
                           {subSkills.map((skill: any, idx: number) => (
-                            <div key={idx} className="flex items-center gap-1.5 bg-white dark:bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500" />
-                              {skill.name}
-                              {skill.years && <span className="opacity-60 font-normal ml-1">({skill.years}y)</span>}
+                            <div key={idx} className="flex flex-col gap-1.5 bg-white dark:bg-slate-800/50 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm">
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500" />
+                                {skill.name}
+                                {skill.years && <span className="opacity-60 font-normal ml-1">({skill.years}y)</span>}
+                                {skill.credlyUrl && (
+                                  <a href={skill.credlyUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-indigo-500 hover:text-indigo-700">
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>

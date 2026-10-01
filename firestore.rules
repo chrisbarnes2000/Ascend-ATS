@@ -1,6 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
     // Helper functions
     function isSignedIn() {
       return request.auth != null;
@@ -10,21 +15,29 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3'] ||
+        request.auth.token.email == 'Chris.Barnes.2000@me.com'
+      );
+    }
+
     // User profiles and metadata
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(userId) || (request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3']);
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin();
       
       // Profiles and any other subcollections under a user
       match /profiles/{profileId} {
-        allow read: if isOwner(userId) || (resource != null && resource.data.privacy != null && resource.data.privacy.isPublic == true);
-        allow write: if isOwner(userId) || (request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3']);
+        allow read: if isOwner(userId) || (resource != null && resource.data.privacy != null && resource.data.privacy.isPublic == true) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
       }
       
-      // If there are other subcollections, we can restrict them
       match /{otherSub=**} {
-        allow read: if isOwner(userId);
-        allow write: if isOwner(userId) || (request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3']);
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
       }
     }
 
@@ -37,8 +50,8 @@ service cloud.firestore {
     match /companies/{companyId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.ownerUserId == request.auth.uid || request.resource.data.ownerUserId == request.auth.uid);
-      allow delete: if isSignedIn() && (request.auth.uid in ['393uzPXnOdPW3CE3rdhmDMEldzm1', 'QfN0BlyrSfUmj2RIzcqx91SS9gA3']);
+      allow update: if isSignedIn() && (resource.data.ownerUserId == request.auth.uid || request.resource.data.ownerUserId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // Job Postings
@@ -52,7 +65,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.seekerId == request.auth.uid;
       allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow delete: if isAdmin();
     }
 
     // Role Clarification & Info Requests
@@ -60,6 +73,19 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update, delete: if isSignedIn();
+    }
+
+    // Staffing Invitations
+    match /staffing_invitations/{inviteCode} {
+      allow get: if true; // Public check during signup validation
+      allow list, create, delete: if isAdmin();
+      allow update: if isSignedIn(); // Allow updating status to 'accepted' by the new user
+    }
+
+    // Partner Requests (Lead generation for firms without codes)
+    match /partner_requests/{requestId} {
+      allow create: if true; // Public lead generation
+      allow read, write: if isAdmin();
     }
   }
 }

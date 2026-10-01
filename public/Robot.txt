@@ -1,0 +1,16 @@
+# Robot.txt for Ascend ATS (In Partnership with RapportVerse)
+# Official Website: https://rapprt.space
+
+User-agent: *
+Allow: /
+Allow: /#legal
+Allow: /#terms
+Allow: /#privacy
+Allow: /#affiliates
+Allow: /#rapportverse
+Allow: /#trust-network
+Allow: /llms.txt
+Allow: /site.webmanifest
+Disallow: /api/
+
+Sitemap: https://ais-pre-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/sitemap.xml

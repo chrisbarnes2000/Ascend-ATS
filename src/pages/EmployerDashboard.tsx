@@ -27,13 +27,14 @@ import {
   Link,
   DollarSign
 } from 'lucide-react';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, getDocs, updateDoc, orderBy, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDoc, setDoc, getDocs, updateDoc, orderBy, serverTimestamp, arrayUnion, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../hooks/useAuth';
 import { EmployerSourcing } from './EmployerSourcing';
 import { CompanyManagement } from './CompanyManagement';
 import { JobRequisitionEditor } from '../components/JobRequisitionEditor';
-import { Edit3 } from 'lucide-react';
+import { GovJobsBridge } from '../components/GovJobsBridge';
+import { Edit3, Globe } from 'lucide-react';
 
 interface ApplicationRecord {
   id: string;
@@ -56,7 +57,7 @@ interface ApplicationRecord {
 
 export const EmployerDashboard = () => {
   const { user, appUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'pipeline' | 'sourcing' | 'requisitions' | 'company'>('pipeline');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'sourcing' | 'requisitions' | 'company' | 'govbridge'>('pipeline');
   
   // Real-time Applications State
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
@@ -186,6 +187,39 @@ export const EmployerDashboard = () => {
     });
 
     return () => unsubscribe();
+  }, [user]);
+
+  // Staffing Invitation Acceptance Logic
+  useEffect(() => {
+    const handleInvitation = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const inviteCode = params.get('invite');
+      if (inviteCode && user) {
+        try {
+          const inviteSnap = await getDocs(query(collection(db, 'staffing_invitations'), where('inviteCode', '==', inviteCode), where('status', '==', 'pending')));
+          if (!inviteSnap.empty) {
+            const inviteDoc = inviteSnap.docs[0];
+            const inviteData = inviteDoc.data();
+            await updateDoc(doc(db, 'users', user.uid), {
+              accountType: inviteData.role === 'recruiter' ? 'recruiter' : 'staffingFirm',
+              staffingFirmName: inviteData.targetFirmName,
+              staffingRole: inviteData.role,
+              profileCompleted: false 
+            });
+            await updateDoc(doc(db, 'staffing_invitations', inviteDoc.id), {
+              status: 'accepted',
+              acceptedByUid: user.uid,
+              acceptedAt: serverTimestamp()
+            });
+            setSuccessToast(`Welcome to ${inviteData.targetFirmName}! Your account has been upgraded to ${inviteData.role}.`);
+            window.location.search = ''; 
+          }
+        } catch (err) {
+          console.error("Failed to process invitation:", err);
+        }
+      }
+    };
+    handleInvitation();
   }, [user]);
 
   // 6-Second Auto-Mark as Viewed Timer when inspecting candidate profile / application details
@@ -419,6 +453,12 @@ export const EmployerDashboard = () => {
             className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'requisitions' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <Edit3 className="w-4 h-4 text-indigo-500" /> Requisitions & Audits
+          </button>
+          <button 
+            onClick={() => setActiveTab('govbridge')}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'govbridge' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+          >
+            <Globe className="w-4 h-4 text-emerald-500" /> GovJobs Bridge
           </button>
           <button 
             onClick={() => setActiveTab('company')}
@@ -681,6 +721,10 @@ export const EmployerDashboard = () => {
             companyId={recruiterCompany.claimedCompanyId || user?.uid} 
             companyName={recruiterCompany.companyName} 
           />
+        </motion.div>
+      ) : activeTab === 'govbridge' ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <GovJobsBridge />
         </motion.div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

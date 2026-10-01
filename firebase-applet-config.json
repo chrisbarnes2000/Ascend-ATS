@@ -6,5 +6,7 @@
   "firestoreDatabaseId": "ai-studio-6e60562a-a817-4e58-a637-e0a28adad44f",
   "storageBucket": "ascend-ats.firebasestorage.app",
   "messagingSenderId": "175699653307",
-  "measurementId": ""
+  "measurementId": "",
+  "oAuthClientId": "175699653307-j1fv2fdqg6vclpd7h4epvol3smb4tce1.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }

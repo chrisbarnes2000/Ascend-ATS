@@ -80,6 +80,31 @@
         "method": { "type": "string", "enum": ["auto", "one-click", "manual"] },
         "communications": { "type": "array" }
       }
+    },
+    "StaffingInvitation": {
+      "title": "Staffing Invitation",
+      "description": "Onboarding token for recruiters",
+      "type": "object",
+      "properties": {
+        "inviteCode": { "type": "string" },
+        "email": { "type": "string" },
+        "targetFirmName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "recruiter", "owner"] },
+        "status": { "type": "string", "enum": ["pending", "accepted", "expired"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "PartnerRequest": {
+      "title": "Partner Request",
+      "description": "Inbound request from external sources (Dice, LinkedIn, etc.)",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "source": { "type": "string" },
+        "details": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -102,6 +127,14 @@
     "applications/{applicationId}": {
       "schema": "Application",
       "description": "Application records tracking job seeker progress"
+    },
+    "staffing_invitations/{inviteCode}": {
+      "schema": "StaffingInvitation",
+      "description": "Invitations for staffing firm recruiters"
+    },
+    "partner_requests/{requestId}": {
+      "schema": "PartnerRequest",
+      "description": "Requests from external recruiters to join the platform"
     }
   }
 }

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      width: 300px;
+      padding: 24px;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #0f172a;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      background-color: #2563eb;
+      color: white;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+    }
+    h2 { margin: 0; font-size: 18px; font-weight: 800; }
+    p { font-size: 13px; line-height: 1.5; color: #64748b; }
+    .status {
+      padding: 12px;
+      background-color: #f8fafc;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .indicator {
+      width: 8px;
+      height: 8px;
+      background-color: #10b981;
+      border-radius: 50%;
+    }
+    .footer {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #94a3b8;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">A</div>
+    <h2>Ascend Bridge</h2>
+  </div>
+  <p>The Ascend Ingestion Bridge is active. Visit any job posting on LinkedIn or Indeed to see the "Ascend to ATS" button.</p>
+  
+  <button id="import-btn" class="import-btn">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+    </svg>
+    Import Current Page
+  </button>
+
+  <div class="status">
+    <div class="indicator"></div>
+    Connected to Ascend Cloud
+  </div>
+  <div class="footer">
+    Ascend ATS v1.1.0
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

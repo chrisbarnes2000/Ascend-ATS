@@ -6,7 +6,10 @@ import {
   GoogleAuthProvider, 
   signOut,
   setPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
@@ -16,7 +19,10 @@ interface AuthContextType {
   user: User | null;
   appUser: AppUser | null;
   loading: boolean;
-  signInWithGoogle: (accountType?: AccountType) => Promise<void>;
+  signInWithGoogle: (accountType?: AccountType, inviteCode?: string) => Promise<void>;
+  signInWithEmail: (email: string, pass: string) => Promise<void>;
+  signUpWithEmail: (email: string, pass: string, accountType: AccountType, inviteCode?: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateAccountType: (type: AccountType) => Promise<void>;
 }
@@ -65,8 +71,107 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const signInWithGoogle = async (accountType?: AccountType) => {
+  const signUpWithEmail = async (email: string, pass: string, accountType: AccountType, inviteCode?: string) => {
     try {
+      // If company, validate invite code first
+      if (accountType === 'company') {
+        if (!inviteCode) {
+          throw new Error("Company accounts require an invite code for validation. Please contact your administrator.");
+        }
+        const inviteRef = doc(db, 'staffing_invitations', inviteCode.toUpperCase());
+        const inviteSnap = await getDoc(inviteRef);
+        if (!inviteSnap.exists() || inviteSnap.data().status !== 'pending') {
+          throw new Error("Invalid or expired invite code.");
+        }
+      }
+
+      const result = await createUserWithEmailAndPassword(auth, email, pass);
+      const firebaseUser = result.user;
+      const userRef = doc(db, 'users', firebaseUser.uid);
+
+      const newUser: AppUser = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        accountType,
+        profileCompleted: false,
+        settings: {
+          autoApply: false,
+          matchThreshold: 0.8,
+          notifications: true,
+        },
+        createdAt: new Date(),
+        lastLogin: new Date(),
+      };
+
+      // If invite code used, mark it as accepted
+      if (inviteCode && accountType === 'company') {
+        const inviteData = (await getDoc(doc(db, 'staffing_invitations', inviteCode.toUpperCase()))).data();
+        newUser.staffingFirmName = inviteData?.targetFirmName;
+        newUser.staffingRole = inviteData?.role;
+        
+        await setDoc(doc(db, 'staffing_invitations', inviteCode.toUpperCase()), {
+          status: 'accepted',
+          acceptedByUid: firebaseUser.uid,
+          acceptedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      await setDoc(userRef, {
+        ...newUser,
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+      });
+
+      setAppUser(newUser);
+    } catch (error) {
+      console.error('Error signing up with email:', error);
+      throw error;
+    }
+  };
+
+  const signInWithEmail = async (email: string, pass: string) => {
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, pass);
+      const firebaseUser = result.user;
+      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        await setDoc(doc(db, 'users', firebaseUser.uid), { lastLogin: serverTimestamp() }, { merge: true });
+        setAppUser({
+          ...data,
+          lastLogin: new Date(),
+        } as AppUser);
+      }
+    } catch (error) {
+      console.error('Error signing in with email:', error);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      throw error;
+    }
+  };
+
+  const signInWithGoogle = async (accountType?: AccountType, inviteCode?: string) => {
+    try {
+      // If company signup, validate invite code first
+      if (accountType === 'company') {
+        if (!inviteCode) {
+          throw new Error("Company accounts require an invite code for validation. Please contact your administrator.");
+        }
+        const inviteRef = doc(db, 'staffing_invitations', inviteCode.toUpperCase());
+        const inviteSnap = await getDoc(inviteRef);
+        if (!inviteSnap.exists() || inviteSnap.data().status !== 'pending') {
+          throw new Error("Invalid or expired invite code.");
+        }
+      }
+
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result.user;
@@ -87,6 +192,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             notifications: true,
           }
         };
+
+        // If invite code used, mark it as accepted and link firm
+        if (inviteCode && accountType === 'company') {
+          const inviteData = (await getDoc(doc(db, 'staffing_invitations', inviteCode.toUpperCase()))).data();
+          newUser.staffingFirmName = inviteData?.targetFirmName;
+          newUser.staffingRole = inviteData?.role;
+          
+          await setDoc(doc(db, 'staffing_invitations', inviteCode.toUpperCase()), {
+            status: 'accepted',
+            acceptedByUid: firebaseUser.uid,
+            acceptedAt: serverTimestamp()
+          }, { merge: true });
+        }
 
         await setDoc(userRef, {
           ...newUser,
@@ -131,7 +249,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => signOut(auth);
 
   return (
-    <AuthContext.Provider value={{ user, appUser, loading, signInWithGoogle, logout, updateAccountType }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      appUser, 
+      loading, 
+      signInWithGoogle, 
+      signInWithEmail,
+      signUpWithEmail,
+      resetPassword,
+      logout, 
+      updateAccountType 
+    }}>
       {children}
     </AuthContext.Provider>
   );
