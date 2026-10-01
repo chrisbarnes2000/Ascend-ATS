@@ -48,6 +48,7 @@ interface GovJobData {
 export const GovJobsBridge: React.FC = () => {
   const { user } = useAuth();
   const [pastedText, setPastedText] = useState('');
+  const [promptVersion, setPromptVersion] = useState<'v1' | 'v2' | 'v3'>('v2');
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestedJob, setIngestedJob] = useState<GovJobData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +64,7 @@ export const GovJobsBridge: React.FC = () => {
       const response = await fetch('/api/ingest-job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pastedText, boardType: 'govjobs' })
+        body: JSON.stringify({ pastedText, boardType: 'govjobs', promptVersion })
       });
 
       if (!response.ok) throw new Error('Failed to ingest job posting');
@@ -150,9 +151,60 @@ export const GovJobsBridge: React.FC = () => {
               </button>
             </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
               Copy the entire job listing from GovernmentJobs.com (including headers like "Salary", "Job Number", etc.) and paste it below.
             </p>
+
+            {/* Prompt Tier Selector */}
+            <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                  GovJobs Ingestion Prompt Tier
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  {promptVersion === 'v1' ? '~300ms (Heuristic)' : (promptVersion === 'v2' ? '~1.2s (Taxonomy)' : '~2.5s (STAR Prep)')}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPromptVersion('v1')}
+                  className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                    promptVersion === 'v1'
+                      ? 'border-indigo-500 bg-white dark:bg-slate-900 shadow-xs ring-1 ring-indigo-500 text-indigo-700 dark:text-indigo-300 font-bold'
+                      : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 font-medium'
+                  }`}
+                >
+                  <div className="text-xs font-bold">V1 Fast</div>
+                  <div className="text-[9px] text-slate-400 uppercase">NEOGOV Regex</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPromptVersion('v2')}
+                  className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                    promptVersion === 'v2'
+                      ? 'border-indigo-500 bg-white dark:bg-slate-900 shadow-xs ring-1 ring-indigo-500 text-indigo-700 dark:text-indigo-300 font-bold'
+                      : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 font-medium'
+                  }`}
+                >
+                  <div className="text-xs font-bold">V2 Semantic</div>
+                  <div className="text-[9px] text-slate-400 uppercase">Taxonomy</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPromptVersion('v3')}
+                  className={`p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                    promptVersion === 'v3'
+                      ? 'border-violet-500 bg-white dark:bg-slate-900 shadow-xs ring-1 ring-violet-500 text-violet-700 dark:text-violet-300 font-bold'
+                      : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 font-medium'
+                  }`}
+                >
+                  <div className="text-xs font-bold">V3 Executive</div>
+                  <div className="text-[9px] text-slate-400 uppercase">STAR & Strategy</div>
+                </button>
+              </div>
+            </div>
 
             <textarea
               rows={12}

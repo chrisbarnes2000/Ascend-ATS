@@ -13,7 +13,8 @@
     "https://*.indeed.com/*",
     "https://*.governmentjobs.com/*",
     "http://localhost:3000/*",
-    "https://ais-dev-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*"
+    "https://ais-dev-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*",
+    "https://ais-pre-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*"
   ],
   "action": {
     "default_popup": "popup.html",

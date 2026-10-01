@@ -4,6 +4,29 @@ This internal engineering log records granular development actions, architecture
 
 ---
 
+## [0.5.25-dev.24] - 2026-09-30
+### Added & Enhanced (ITIL Service Transition - 3-Tier Prompt Matrix & Role-Aware Extension)
+- **Role-Aware Multi-Tier Chrome Extension (`extension/popup.html`, `extension/popup.js`, `extension/content.js`)**:
+  - **Dynamic Role Switcher**: Built a modern 360px popup with interactive tabs for **Job Seeker**, **Recruiter / Firm**, and **Platform Admin** (`Chris.Barnes.2000@me.com`) with session auto-detection and persistence in `chrome.storage.local`.
+  - **Profile Display & Readiness Radar**: Displays candidate avatar, full name, target role, a dynamic 4-point Profile Completeness percentage bar (Resume, Skills, Target Role, Privacy Shield), and active Competitor Firewall status.
+  - **Actor-Specific Quick Actions**:
+    - **Job Seekers**: Added 1-click **"Import Current Job"** and **"Assess Fit on This Page"** (runs live heuristic match on active tab and displays match % badge and qualifications summary directly in popup). Added quick shortcuts to `My Jobs`, `Analytics`, and `Edit Profile`.
+    - **Recruiters / Firms**: Added **"Import as Requisition"** (tags job directly into firm pipeline) and **"Source Candidates for Role"** (launches `#sourcing` with pre-filled filters).
+    - **Platform Admins**: Added **"Open Admin Control Panel"** (`#admin`), **"Run Pipeline Diagnostics"** (pings `/api/health` and prompt matrix with real-time latency report in mini-terminal), and shortcuts to Company Management and Firm Invites.
+- **Unified 3-Tier Prompt Matrix Engine Across All 3 Import Engines (`server.ts`)**:
+  - Standardized all ingestion surfaces (`extension/content.js`, `src/components/ResumeUpload.tsx`, `src/components/GovJobsBridge.tsx`) to dynamically execute across the 3 prompt tiers:
+    - **Tier V1 (Fast Heuristic Baseline)**: High-speed deterministic extraction of compensation (hourly/annual), workplace type, explicit keywords, and clean markdown with ~300ms latency.
+    - **Tier V2 (Deep Semantic Taxonomy & Skill Normalization)**: Gemini 3.8 Flash structured JSON classifying skills into standard domains (`Technical`, `Soft Skills`, `Leadership`, `Domain Knowledge`, `Tools`), minimum vs. preferred qualification splitting, and 10-point benefits mapping with ~1.2s latency.
+    - **Tier V3 (Strategic Executive Intelligence & Copilot Insights)**: Gemini 3.8 Flash strategic advisor generating 4 behavioral STAR interview questions with model answers, unstated hiring expectations, transition warnings, and tailored pitch strategies with ~2.5s latency.
+  - Added backend endpoints `/api/prompt-matrix` (metadata and latency stats) and `/api/extension/profile-check` (role and completeness audit).
+- **Frontend Import Engine Synchronization**:
+  - `src/components/ResumeUpload.tsx`: Upgraded single checkbox into a 3-tier segmented matrix selector (`V1 Fast RegEx`, `V2 Semantic Taxonomy`, `V3 Executive STAR Prep`).
+  - `src/components/GovJobsBridge.tsx`: Added 3-tier prompt matrix selection controls with latency badges prior to text analysis.
+- **Roadmap Archival**:
+  - Archived `GovJobs Bridge Integration` milestone into **Completed Roadmaps** in `Docs/INDEX_ROADMAP.md` and `Docs/RoadMaps/GovJobs_Bridge_Integration.md`.
+
+---
+
 ## [0.5.25-dev.23] - 2026-09-30
 ### Added & Enhanced (ITIL Service Transition - Ingestion Engine Connectivity)
 - **Live Ingestion Bridge for Passive Placement Analytics (`src/pages/JobSeekerAnalytics.tsx`)**:

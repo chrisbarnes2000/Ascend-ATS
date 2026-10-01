@@ -1,77 +1,586 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ascend ATS Ingestion Bridge</title>
   <style>
-    body {
-      width: 300px;
-      padding: 24px;
-      font-family: system-ui, -apple-system, sans-serif;
-      color: #0f172a;
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --slate-900: #0f172a;
+      --slate-800: #1e293b;
+      --slate-700: #334155;
+      --slate-500: #64748b;
+      --slate-400: #94a3b8;
+      --slate-100: #f1f5f9;
+      --slate-50: #f8fafc;
+      --emerald-600: #059669;
+      --emerald-50: #ecfdf5;
+      --amber-600: #d97706;
+      --violet-600: #7c3aed;
     }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      width: 360px;
+      background: #ffffff;
+      color: var(--slate-900);
+      font-size: 13px;
+      line-height: 1.4;
+      padding: 16px;
+    }
+
+    /* Header */
     .header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 20px;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--slate-100);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     .logo {
-      width: 32px;
-      height: 32px;
-      background-color: #2563eb;
-      color: white;
+      width: 28px;
+      height: 28px;
+      background: var(--primary);
+      color: #ffffff;
       border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 900;
+      font-size: 15px;
     }
-    h2 { margin: 0; font-size: 18px; font-weight: 800; }
-    p { font-size: 13px; line-height: 1.5; color: #64748b; }
-    .status {
-      padding: 12px;
-      background-color: #f8fafc;
-      border-radius: 12px;
-      font-size: 12px;
+    .title-group h1 {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .title-group p {
+      font-size: 10px;
+      color: var(--slate-500);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      background: var(--emerald-50);
+      color: var(--emerald-600);
+      border-radius: 999px;
+      font-size: 10px;
       font-weight: 700;
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--emerald-600);
+      border-radius: 50%;
+    }
+
+    /* Role Switcher Tabs */
+    .role-tabs {
+      display: flex;
+      background: var(--slate-100);
+      padding: 3px;
+      border-radius: 12px;
+      margin-bottom: 14px;
+      gap: 2px;
+    }
+    .role-tab {
+      flex: 1;
+      padding: 6px 4px;
+      background: transparent;
+      border: none;
+      border-radius: 9px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--slate-500);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+    .role-tab.active {
+      background: #ffffff;
+      color: var(--slate-900);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+    .role-tab:hover:not(.active) {
+      color: var(--slate-800);
+    }
+
+    /* Profile Card */
+    .profile-card {
+      background: var(--slate-50);
+      border: 1px solid var(--slate-100);
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .profile-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .profile-info {
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .indicator {
-      width: 8px;
-      height: 8px;
-      background-color: #10b981;
+    .avatar {
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
+      background: #e0e7ff;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 12px;
     }
-    .footer {
-      margin-top: 20px;
+    .profile-names h3 {
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .profile-names p {
+      font-size: 10px;
+      color: var(--slate-500);
+    }
+    .role-badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      background: #eff6ff;
+      color: var(--primary);
+    }
+
+    /* Progress bar */
+    .progress-bar-container {
+      margin-top: 6px;
+    }
+    .progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--slate-700);
+    }
+    .progress-track {
+      width: 100%;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #6366f1);
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+
+    /* Checks Pills */
+    .checks-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .check-pill {
+      font-size: 10px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: #ffffff;
+      border: 1px solid var(--slate-100);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--slate-700);
+      font-weight: 600;
+    }
+    .check-pill.ok {
+      border-color: #bbf7d0;
+      color: var(--emerald-600);
+    }
+
+    /* Prompt Version Matrix */
+    .prompt-section {
+      margin-bottom: 14px;
+    }
+    .section-title {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--slate-400);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .prompt-selector {
+      display: flex;
+      gap: 6px;
+    }
+    .prompt-btn {
+      flex: 1;
+      padding: 7px 4px;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      border-radius: 10px;
+      cursor: pointer;
       font-size: 11px;
-      color: #94a3b8;
+      font-weight: 700;
+      color: var(--slate-700);
       text-align: center;
+      transition: all 0.15s ease;
+    }
+    .prompt-btn.active {
+      border-color: var(--primary);
+      background: #eff6ff;
+      color: var(--primary);
+      box-shadow: 0 1px 2px rgba(37, 99, 235, 0.15);
+    }
+    .prompt-btn .tag {
+      display: block;
+      font-size: 8px;
+      text-transform: uppercase;
+      opacity: 0.8;
+      margin-top: 1px;
+    }
+    .prompt-desc {
+      font-size: 10px;
+      color: var(--slate-500);
+      margin-top: 6px;
+      background: var(--slate-50);
+      padding: 6px 8px;
+      border-radius: 8px;
+      border-left: 2px solid var(--primary);
+    }
+
+    /* Main Action Button */
+    .action-btn-primary {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--slate-900);
+      color: #ffffff;
+      border: none;
+      padding: 11px 16px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 8px;
+    }
+    .action-btn-primary:hover {
+      background: var(--slate-800);
+      transform: translateY(-1px);
+    }
+    .action-btn-secondary {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #ffffff;
+      color: var(--slate-800);
+      border: 1px solid #cbd5e1;
+      padding: 9px 14px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 12px;
+    }
+    .action-btn-secondary:hover {
+      background: var(--slate-50);
+      border-color: #94a3b8;
+    }
+
+    /* Quick Links Grid */
+    .quick-links {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .quick-link-btn {
+      padding: 8px 4px;
+      background: var(--slate-50);
+      border: 1px solid var(--slate-100);
+      border-radius: 10px;
+      color: var(--slate-700);
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+      text-decoration: none;
+      display: block;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .quick-link-btn:hover {
+      background: #ffffff;
+      border-color: #cbd5e1;
+      color: var(--primary);
+    }
+
+    /* Assessment Banner */
+    .assessment-box {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      font-size: 11px;
+      display: none;
+    }
+    .assessment-box.active {
+      display: block;
+    }
+    .assessment-score {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--emerald-600);
+      margin-bottom: 2px;
+    }
+
+    /* Terminal Box for Admin */
+    .terminal-box {
+      background: #090d16;
+      color: #38bdf8;
+      font-family: monospace;
+      font-size: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      max-height: 80px;
+      overflow-y: auto;
+      margin-top: 8px;
+      display: none;
+      line-height: 1.4;
+    }
+    .terminal-box.active {
+      display: block;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--slate-100);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--slate-400);
+    }
+    .footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 700;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="logo">A</div>
-    <h2>Ascend Bridge</h2>
-  </div>
-  <p>The Ascend Ingestion Bridge is active. Visit any job posting on LinkedIn or Indeed to see the "Ascend to ATS" button.</p>
-  
-  <button id="import-btn" class="import-btn">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-    </svg>
-    Import Current Page
-  </button>
 
-  <div class="status">
-    <div class="indicator"></div>
-    Connected to Ascend Cloud
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <div class="logo">A</div>
+      <div class="title-group">
+        <h1>Ascend Bridge</h1>
+        <p>Intelligent ATS Ingestion</p>
+      </div>
+    </div>
+    <div class="status-pill">
+      <div class="pulse-dot"></div>
+      <span id="conn-status">Cloud Online</span>
+    </div>
   </div>
+
+  <!-- Role Switcher -->
+  <div class="role-tabs">
+    <button class="role-tab active" data-role="seeker" id="tab-seeker">Seeker</button>
+    <button class="role-tab" data-role="recruiter" id="tab-recruiter">Recruiter</button>
+    <button class="role-tab" data-role="admin" id="tab-admin">Admin</button>
+  </div>
+
+  <!-- Profile & Readiness Card -->
+  <div class="profile-card">
+    <div class="profile-header">
+      <div class="profile-info">
+        <div class="avatar" id="prof-avatar">C</div>
+        <div class="profile-names">
+          <h3 id="prof-name">Chris Barnes</h3>
+          <p id="prof-target">Senior Systems Engineer</p>
+        </div>
+      </div>
+      <span class="role-badge" id="prof-badge">Candidate</span>
+    </div>
+
+    <!-- Completeness bar -->
+    <div class="progress-bar-container">
+      <div class="progress-labels">
+        <span>Profile Completeness</span>
+        <span id="prof-percent">95%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="prof-bar" style="width: 95%"></div>
+      </div>
+    </div>
+
+    <!-- Status Checks -->
+    <div class="checks-grid">
+      <div class="check-pill ok" id="chk-resume">📄 Resume Ready</div>
+      <div class="check-pill ok" id="chk-skills">⚡ 12 Skills Active</div>
+      <div class="check-pill ok" id="chk-target">🎯 Target Role Set</div>
+      <div class="check-pill ok" id="chk-privacy">🛡️ Firewall Shield</div>
+    </div>
+  </div>
+
+  <!-- 3-Tier Prompt Matrix Selector -->
+  <div class="prompt-section">
+    <div class="section-title">
+      <span>AI Ingestion Engine</span>
+      <span id="prompt-latency">~1.2s</span>
+    </div>
+    <div class="prompt-selector">
+      <button class="prompt-btn" data-version="v1" id="pbtn-v1">
+        V1 Fast
+        <span class="tag">Heuristic</span>
+      </button>
+      <button class="prompt-btn active" data-version="v2" id="pbtn-v2">
+        V2 Semantic
+        <span class="tag">Taxonomy</span>
+      </button>
+      <button class="prompt-btn" data-version="v3" id="pbtn-v3">
+        V3 Executive
+        <span class="tag">STAR Prep</span>
+      </button>
+    </div>
+    <div class="prompt-desc" id="prompt-desc-text">
+      <strong>V2 Semantic:</strong> Standardizes skill taxonomy into technical & soft domains with 10-point perks mapping.
+    </div>
+  </div>
+
+  <!-- Role Dynamic Actions Content -->
+  <!-- 1. Seeker View -->
+  <div class="role-view" id="view-seeker">
+    <button id="seeker-import-btn" class="action-btn-primary">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+      </svg>
+      Import Current Job
+    </button>
+    
+    <button id="seeker-assess-btn" class="action-btn-secondary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="m9 12 2 2 4-4"></path>
+      </svg>
+      Assess Fit on This Page
+    </button>
+
+    <div class="assessment-box" id="assessment-box">
+      <div class="assessment-score" id="assess-score">92% Match Score</div>
+      <div id="assess-details">Strong alignment with TypeScript, React & distributed systems requirements.</div>
+    </div>
+
+    <div class="section-title" style="margin-top: 10px;">Quick Navigation</div>
+    <div class="quick-links">
+      <a class="quick-link-btn" id="link-apps">My Jobs</a>
+      <a class="quick-link-btn" id="link-analytics">Analytics</a>
+      <a class="quick-link-btn" id="link-profile">Edit Profile</a>
+    </div>
+  </div>
+
+  <!-- 2. Recruiter View -->
+  <div class="role-view" id="view-recruiter" style="display: none;">
+    <button id="recruiter-import-btn" class="action-btn-primary" style="background: var(--violet-600);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="20" height="14" x="2" y="7" rx="2" ry="2"/>
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+      </svg>
+      Import as Requisition
+    </button>
+
+    <button id="recruiter-source-btn" class="action-btn-secondary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.3-4.3"/>
+      </svg>
+      Source Candidates for Role
+    </button>
+
+    <div class="section-title" style="margin-top: 10px;">Firm Shortcuts</div>
+    <div class="quick-links">
+      <a class="quick-link-btn" id="link-rec-dash">Dashboard</a>
+      <a class="quick-link-btn" id="link-rec-sourcing">Sourcing</a>
+      <a class="quick-link-btn" id="link-rec-partner">Partner Kit</a>
+    </div>
+  </div>
+
+  <!-- 3. Admin View -->
+  <div class="role-view" id="view-admin" style="display: none;">
+    <button id="admin-panel-btn" class="action-btn-primary" style="background: #0284c7;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+      </svg>
+      Open Admin Control Panel
+    </button>
+
+    <button id="admin-diag-btn" class="action-btn-secondary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+      Run Pipeline Diagnostics
+    </button>
+
+    <div class="terminal-box" id="admin-terminal">
+      > Pinging Ascend API health...<br>
+      > Checking Gemini 3.8 Flash quota...<br>
+      > Prompt matrix: V1, V2, V3 active.
+    </div>
+
+    <div class="section-title" style="margin-top: 10px;">Admin Actions</div>
+    <div class="quick-links">
+      <a class="quick-link-btn" id="link-admin-panel">Admin (#admin)</a>
+      <a class="quick-link-btn" id="link-admin-companies">Companies</a>
+      <a class="quick-link-btn" id="link-admin-invites">Firm Invites</a>
+    </div>
+  </div>
+
+  <!-- Footer -->
   <div class="footer">
-    Ascend ATS v1.1.0
+    <span>Ascend ATS Bridge v1.2.0</span>
+    <a href="#" id="open-web-app">Launch App &rarr;</a>
   </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
