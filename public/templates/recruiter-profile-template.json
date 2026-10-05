@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "version": "2026.10.04",
+    "purpose": "Standardized recruiter profile and talent sourcing template for Ascend ATS.",
+    "role": "recruiter",
+    "usage": "Use this JSON template to configure public recruiter credentials, verified company attachment, active sourcing specialties, and candidate response SLAs."
+  },
+  "recruiter_info": {
+    "first_name": "Taylor",
+    "last_name": "Vance",
+    "title": "Lead Technical Recruiter & Talent Acquisition Partner",
+    "email": "taylor.vance@example.com",
+    "phone": "+1-415-555-0199",
+    "location": "San Francisco, CA (Open to Remote Candidates)",
+    "linkedin": "https://linkedin.com/in/taylorvance-talent",
+    "avatar_url": "",
+    "calendly_url": "https://calendly.com/taylorvance/introductory-chat"
+  },
+  "organization": {
+    "company_name": "Apex Distributed Labs",
+    "company_id": "",
+    "website": "https://apexlabs.example.com",
+    "industry": "Cloud Infrastructure & Distributed Computing",
+    "size": "51-200",
+    "description": "Building next-generation fault-tolerant distributed platforms for high-throughput enterprise workloads."
+  },
+  "professional_bio": {
+    "summary": "Technical recruiter with 7+ years of experience partnering with engineering leadership to scale high-performing software infrastructure teams. Known for deep technical role comprehension, clear compensation transparency, and respectful candidate communication.",
+    "years_experience": 7,
+    "sourcing_philosophy": "Matching exceptional engineers with teams that respect their craft, value psychological safety, and provide meaningful technical ownership."
+  },
+  "sourcing_specialties": [
+    "Distributed Systems Engineering",
+    "Cloud Infrastructure (AWS / GCP / Kubernetes)",
+    "Senior & Staff Software Engineering",
+    "DevSecOps & Platform Reliability",
+    "Full-Stack TypeScript & React Architecture",
+    "Data Engineering & Stream Processing"
+  ],
+  "active_focus_areas": {
+    "priority_roles": [
+      "Staff Software Engineer (Distributed Systems)",
+      "Senior Cloud Infrastructure Engineer",
+      "Principal Frontend Architect",
+      "Engineering Manager (Platform Team)"
+    ],
+    "workplace_types": ["Remote (US & Canada)", "Hybrid (San Francisco, CA)"],
+    "seniority_levels": ["Senior", "Staff", "Principal", "Engineering Lead"],
+    "salary_range": "$165,000 - $265,000 USD (Base) + Equity"
+  },
+  "candidate_standards": {
+    "guaranteed_feedback_hours": 48,
+    "transparency_commitment": "All job postings feature verified salary bands, no surprise take-home tests, and comprehensive feedback following every technical interview.",
+    "contact_preference": "email",
+    "neurodivergent_friendly_process": true,
+    "accommodations_supported": [
+      "Advance interview agenda and question preview",
+      "Flexible asynchronous written communication",
+      "Alternative portfolio code review instead of live whiteboarding"
+    ]
+  },
+  "key_metrics": [
+    { "value": "140+", "label": "Technical Placements" },
+    { "value": "48 hrs", "label": "Candidate Response SLA" },
+    { "value": "4.9/5", "label": "Candidate Experience Score" }
+  ]
+}

@@ -6,6 +6,7 @@ This file tracks all ongoing and planned roadmaps.
 - (No active roadmaps currently open)
 
 ## Completed Roadmaps
+- **Deduplication, Validation, and Merge Engine**: `Docs/RoadMaps/Dedup_Validation_Merge_Engine.md` (Implemented)
 - **GovJobs Bridge Integration**: `Docs/RoadMaps/GovJobs_Bridge_Integration.md` (Implemented)
 - **Assisted Insights Matching Engine**: `Docs/RoadMaps/Assisted_Insights_Matching.md` (Implemented)
 - **Resume Parsing Dual Pipeline**: `Docs/RoadMaps/Resume_Dual_Pipeline.md` (Implemented)

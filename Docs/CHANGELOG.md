@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.26] - 2026-09-30
+### Added & Enhanced
+- **Role-Based Access Control (RBAC) & Authentication Gateway for Browser Extension**:
+  - Integrated an enforced authentication gateway into the Chrome Extension (`extension/popup.html`, `extension/popup.js`) ensuring all ingestion and matching features require an authenticated Ascend ATS account.
+  - Automatic cross-origin session synchronization between Ascend ATS web app tabs, Firebase Auth, and local extension storage.
+  - Strict role segregation: Job Seekers have locked access to Recruiter requisition tools and Administrator diagnostics with informative security guidance and direct `#partner-request` routing.
+  - Enforced backend authorization in `/api/ingest-job` returning `HTTP 403 Forbidden` if unauthorized candidate accounts attempt employer requisition creation.
+- **Unified 3-Tier Prompt Matrix Across All Ingestion Engines**:
+  - Synchronized the Chrome Extension, Document Parser (`ResumeUpload.tsx`), and Public Sector Bridge (`GovJobsBridge.tsx`) across three deterministic prompt tiers:
+    - **Tier V1 (Fast Heuristic Baseline)**: Instant deterministic extraction of salary, location, job type, and markdown formatting with ~300ms response time.
+    - **Tier V2 (Deep Semantic Taxonomy & Normalization)**: Gemini-powered skill categorization into 5 standard domains (Technical, Soft Skills, Leadership, Domain Knowledge, Tools) with 10-point benefits extraction and qualification splitting (~1.2s).
+    - **Tier V3 (Strategic Executive Intelligence)**: Senior career copilot analyzing implicit hiring expectations, transition risks, and generating 4 tailored behavioral STAR interview scenarios with benchmark answers (~2.5s).
+- **Public Sector Bridge (GovernmentJobs.com / NEOGOV Ingestion)**:
+  - Created a dedicated public sector ingestion bridge (`GovJobsBridge.tsx`) supporting municipal and state job listings with complex hourly-to-annual pay step normalization and class specifications.
+- **Role-Adaptive Extension Shell & Readiness Radar**:
+  - Upgraded extension popup to a 360px adaptive workspace featuring candidate Profile Completeness radar, 4-point readiness checklist, and 1-click active tab fit assessment.
+  - Built specialized Recruiter workflows (Requisition import, Candidate Sourcing) and Administrator diagnostic monitoring.
+- **Live Passive Placement Analytics & Competitor Firewall**:
+  - Connected Candidate Analytics directly to live Firestore job streams with dynamic Discovery Index scoring, live organization hiring indicators, and real-time privacy firewall blocks against excluded employers.
+
 ## [0.5.25] - 2026-09-21
 ### Added & Enhanced
 - **RapportVerse Strategic Bridge Page**: Created `RapportVersePage.tsx` with dedicated hash routing (`#rapportverse` & `#trust-network`) offering deep integration between Ascend ATS and the RapportVerse relationship intelligence platform (`https://rapprt.space`).

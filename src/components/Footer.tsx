@@ -2,8 +2,8 @@ import { TrendingUp, Shield, Handshake, Mail, FileText, Globe, Heart, Sparkles }
 import { useAuth } from '../hooks/useAuth';
 
 export const Footer = () => {
-  const { user } = useAuth();
-  const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1';
+  const { user, appUser } = useAuth();
+  const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin';
 
   return (
     <footer className="w-full bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800/80 pt-16 pb-8 transition-colors duration-300">
@@ -14,7 +14,7 @@ export const Footer = () => {
           
           {/* Brand Column */}
           <div className="md:col-span-1.5 space-y-4 text-left">
-            <a href="#" className="flex items-center gap-2">
+            <a href={isAdmin ? "#admin" : user ? "#seeker" : "#"} className="flex items-center gap-2">
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-200 dark:shadow-none">
                 <TrendingUp className="text-white w-5 h-5" />
               </div>

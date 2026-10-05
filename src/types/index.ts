@@ -2,10 +2,10 @@
  * Core Types for Ascend ATS
  */
 
-export type AccountType = 'jobSeeker' | 'company' | 'staffingFirm' | 'recruiter' | 'admin';
+export type AccountType = 'jobSeeker' | 'recruiter' | 'company' | 'admin' | 'companyOwner' | 'staffingFirm';
 export type ApplicationStatus = 'applied' | 'viewed' | 'interviewing' | 'offered' | 'rejected';
 export type ApplicationMethod = 'auto' | 'one-click' | 'manual';
-export type JobStatus = 'active' | 'inactive' | 'filled';
+export type JobStatus = 'active' | 'inactive' | 'filled' | 'draft' | 'archived' | 'planned';
 
 export interface UserSettings {
   autoApply: boolean;
@@ -16,11 +16,20 @@ export interface UserSettings {
 export interface AppUser {
   uid: string;
   email: string;
+  emailOriginal?: string;
+  linkedProviders?: string[];
   accountType: AccountType;
   staffingFirmId?: string;
   staffingFirmName?: string;
   staffingRole?: 'admin' | 'recruiter' | 'owner';
+  companyId?: string;
+  companyName?: string;
+  claimedCompanyId?: string;
+  activeCompanyId?: string;
+  activeCompanyName?: string;
+  companyRole?: 'owner' | 'manager' | 'recruiter' | 'admin';
   profileCompleted: boolean;
+  roleSwitchHistory?: { role: AccountType; timestamp: any }[];
   settings: UserSettings;
   createdAt: Date;
   lastLogin: Date;
@@ -132,6 +141,64 @@ export interface StaffingInvitation {
   utmCampaign?: string;
 }
 
+export interface PartnerRequest {
+  id: string;
+  email: string;
+  source: string;
+  details: string;
+  status: 'pending' | 'reviewed' | 'rejected';
+  createdAt: any;
+}
+
+export interface RecruiterProfile {
+  personalInfo: {
+    firstName: string;
+    lastName: string;
+    title?: string;
+    phone?: string;
+    linkedinUrl?: string;
+    avatarUrl?: string;
+    email?: string;
+    location?: string;
+  };
+  bio: string;
+  specialties: string[];
+  companyId?: string;
+  companyName?: string;
+  companyLogoUrl?: string;
+  website?: string;
+  isPublic: boolean;
+  yearsExperience?: number;
+  contactPreference?: 'email' | 'linkedin' | 'phone';
+  updatedAt?: any;
+}
+
+export interface CompanyRecruiterInvite {
+  id: string;
+  companyId: string;
+  companyName: string;
+  invitedByUid: string;
+  invitedByEmail: string;
+  inviteCode: string;
+  status: 'pending' | 'accepted' | 'revoked';
+  acceptedByUid?: string;
+  acceptedByEmail?: string;
+  createdAt: any;
+  expiresAt?: any;
+}
+
+export interface CompanyClaimRequest {
+  id: string;
+  userId: string;
+  userEmail: string;
+  companyId: string;
+  companyName: string;
+  companyOwnerId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: any;
+  updatedAt: any;
+}
+
 export interface Company {
   id: string;
   ownerUserId: string;
@@ -140,11 +207,30 @@ export interface Company {
   description: string;
   industry: string;
   size: string;
+  website?: string;
+  location?: string;
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+  glassdoor?: string;
+  recruiterUids?: string[];
+  pendingInviteCodes?: string[];
+  adminEmails?: string[];
+  updatedAt?: any;
+}
+
+export interface MaterialShift {
+  field: 'salaryMax' | 'salaryMin' | 'requirements' | 'title' | 'workplaceType' | 'location';
+  description: string;
+  severity: 'low' | 'moderate' | 'high_bait_and_switch';
+  riskPoints: number;
+  previousValue?: any;
+  newValue?: any;
 }
 
 export interface JobRevision {
   id: string;
-  versionNumber: string; // e.g. "v1.0", "v1.1", "v2.0"
+  versionNumber: string; // e.g. "v1.0.0", "v1.1.0", "v2.0.0"
   timestamp: any;
   modifiedByEmail: string;
   modifiedByUid: string;
@@ -156,6 +242,8 @@ export interface JobRevision {
     requirements?: string;
     salaryMin?: number;
     salaryMax?: number;
+    workplaceType?: string;
+    location?: string;
   };
   newValues: {
     title?: string;
@@ -163,9 +251,12 @@ export interface JobRevision {
     requirements?: string;
     salaryMin?: number;
     salaryMax?: number;
+    workplaceType?: string;
+    location?: string;
   };
   materialChangeDetected?: boolean;
   materialChangeDetails?: string[];
+  materialShifts?: MaterialShift[];
   flaggedRiskLevel?: 'low' | 'moderate' | 'high_bait_and_switch';
 }
 
@@ -187,10 +278,29 @@ export interface JobTemplateBenchmark {
   keyHighlights: string[];
 }
 
+export interface RecruiterOutreachInfo {
+  name?: string;
+  email?: string;
+  phone?: string;
+  firmName?: string;
+  firmWebsite?: string;
+  linkedInUrl?: string;
+  clientName?: string;
+  workAuth?: string;
+  contractType?: string;
+  rate?: string;
+  location?: string;
+}
+
 export interface Job {
   id: string;
   companyId: string;
   companyName: string;
+  posterFirmId?: string;
+  posterFirmName?: string;
+  recruiterInfo?: RecruiterOutreachInfo;
+  sourceBoard?: string;
+  isClientConfidential?: boolean;
   title: string;
   description: string;
   requirements: string;
@@ -198,6 +308,8 @@ export interface Job {
   department?: string;
   workplaceType?: 'Remote' | 'Hybrid' | 'On-Site';
   location?: string;
+  salaryMin?: number;
+  salaryMax?: number;
   benefits?: string[];
   requiredSkills?: string[];
   preferredSkills?: string[];
@@ -220,6 +332,7 @@ export interface Job {
   updatedAt?: Date | any;
   currentVersion?: string;
   revisions?: JobRevision[];
+  materialShifts?: MaterialShift[];
   nefariousRiskScore?: number; // 0-100 score tracking post-application material shifts
   nefariousFlags?: string[];
   transparencyRating?: 'verified_transparent' | 'minor_edits' | 'under_review' | 'flagged';
@@ -240,6 +353,11 @@ export interface Application {
   appliedAt: Date;
   method: ApplicationMethod;
   communications: Communication[];
+  stateHistory?: {
+    state: ApplicationStatus;
+    timestamp: any;
+    reason?: string;
+  }[];
   jobTitle?: string;
   companyName?: string;
 }

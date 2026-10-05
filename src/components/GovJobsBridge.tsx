@@ -15,11 +15,16 @@ import {
   Calendar,
   Layers,
   ShieldCheck,
-  Globe
+  Globe,
+  Mail,
+  Download,
+  X,
+  UserCheck
 } from 'lucide-react';
 import { db } from '../firebase/config';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../hooks/useAuth';
+import { sanitizeFirestorePayload } from '../utils/firestoreSanitizer';
 
 interface GovJobData {
   title: string;
@@ -38,6 +43,17 @@ interface GovJobData {
   preferredSkills: string[];
   benefits: string[];
   sourceBoard?: string;
+  recruiterInfo?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    firmName?: string;
+    firmWebsite?: string;
+    clientName?: string;
+    workAuth?: string;
+    contractType?: string;
+    rate?: string;
+  };
   insights?: {
     interviewQuestions: Array<{ question: string; answer: string }>;
     unstatedExpectations: string[];
@@ -45,17 +61,52 @@ interface GovJobData {
   };
 }
 
-export const GovJobsBridge: React.FC = () => {
-  const { user } = useAuth();
+interface GovJobsBridgeProps {
+  companyId?: string;
+  companyName?: string;
+  onJobIngested?: () => void;
+}
+
+export const GovJobsBridge: React.FC<GovJobsBridgeProps> = ({
+  companyId,
+  companyName,
+  onJobIngested
+}) => {
+  const { user, appUser } = useAuth();
+  const [bridgeMode, setBridgeMode] = useState<'govjobs' | 'dice_email'>('govjobs');
   const [pastedText, setPastedText] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
   const [promptVersion, setPromptVersion] = useState<'v1' | 'v2' | 'v3'>('v2');
   const [isIngesting, setIsIngesting] = useState(false);
-  const [ingestedJob, setIngestedJob] = useState<GovJobData | null>(null);
+  const [ingestedJob, setIngestedJob] = useState<(GovJobData & { posterFirmName?: string; posterFirmId?: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const handlePdfFileSelect = (file: File) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      setError('Please upload a valid .pdf file.');
+      return;
+    }
+    setPdfFileName(file.name);
+    setPdfFile(file);
+    setError(null);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      setPdfBase64(base64);
+    };
+    reader.onerror = () => {
+      setError('Failed to read PDF document.');
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleIngest = async () => {
-    if (!pastedText.trim()) return;
+    if (!pastedText.trim() && !pdfBase64) return;
     setIsIngesting(true);
     setError(null);
     setIngestedJob(null);
@@ -64,10 +115,25 @@ export const GovJobsBridge: React.FC = () => {
       const response = await fetch('/api/ingest-job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pastedText, boardType: 'govjobs', promptVersion })
+        body: JSON.stringify({ 
+          pastedText: pastedText.trim() || undefined,
+          fileContent: pdfBase64 || undefined,
+          isPdf: !!pdfBase64,
+          fileName: pdfFileName || undefined,
+          boardType: bridgeMode, 
+          promptVersion,
+          isRequisition: true,
+          userSession: {
+            uid: user?.uid,
+            email: user?.email,
+            accountType: appUser?.accountType,
+            staffingFirmName: appUser?.staffingFirmName,
+            staffingFirmId: appUser?.staffingFirmId
+          }
+        })
       });
 
-      if (!response.ok) throw new Error('Failed to ingest job posting');
+      if (!response.ok) throw new Error('Failed to ingest job posting. Please check the document/text and try again.');
 
       const data = await response.json();
       setIngestedJob(data);
@@ -82,29 +148,65 @@ export const GovJobsBridge: React.FC = () => {
     if (!user || !ingestedJob) return;
     setIsIngesting(true);
     try {
-      const jobPayload = {
+      const rawJobPayload = {
         ...ingestedJob,
-        companyId: user.uid, // Default to user's UID as companyId if not linked
+        companyId: companyId || user.uid,
+        companyName: companyName || ingestedJob.companyName || 'Public Sector Agency',
+        posterFirmId: ingestedJob.posterFirmId || user.uid,
+        posterFirmName: ingestedJob.posterFirmName || appUser?.staffingFirmName || 'Ascend GovBridge',
         status: 'active',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         parsedCriteria: {
-          skills: [...ingestedJob.requiredSkills, ...ingestedJob.preferredSkills],
-          requiredSkills: ingestedJob.requiredSkills,
-          preferredSkills: ingestedJob.preferredSkills,
+          skills: [...(ingestedJob.requiredSkills || []), ...(ingestedJob.preferredSkills || [])],
+          requiredSkills: ingestedJob.requiredSkills || [],
+          preferredSkills: ingestedJob.preferredSkills || [],
           minExperience: 2,
           salaryRange: { min: ingestedJob.salaryMin || 0, max: ingestedJob.salaryMax || 0 },
           workplaceType: ingestedJob.workplaceType || 'On-Site',
           location: ingestedJob.location || 'Washington',
-          benefits: ingestedJob.benefits
+          benefits: ingestedJob.benefits || []
         }
       };
 
-      await addDoc(collection(db, 'jobs'), jobPayload);
+      const cleanPayload = sanitizeFirestorePayload(rawJobPayload);
+      await addDoc(collection(db, 'jobs'), cleanPayload);
+
+      // Auto-record discovered recruiter lead for Admin Outreach CRM
+      if (ingestedJob.recruiterInfo?.email) {
+        try {
+          const leadId = (ingestedJob.recruiterInfo.email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const leadRef = doc(db, 'recruiter_leads', leadId);
+          const leadPayload = sanitizeFirestorePayload({
+            recruiterName: ingestedJob.recruiterInfo.name || 'Unknown Recruiter',
+            recruiterEmail: ingestedJob.recruiterInfo.email,
+            recruiterPhone: ingestedJob.recruiterInfo.phone || null,
+            firmName: ingestedJob.recruiterInfo.firmName || ingestedJob.companyName || 'Staffing Firm',
+            clientName: ingestedJob.recruiterInfo.clientName || null,
+            sourceBoard: ingestedJob.sourceBoard || (bridgeMode === 'dice_email' ? 'Dice Recruiter Email' : 'GovernmentJobs / NEOGOV'),
+            jobTitle: ingestedJob.title,
+            discoveredByUid: user.uid,
+            discoveredByEmail: user.email,
+            status: 'discovered',
+            createdAt: serverTimestamp(),
+            lastDiscoveredAt: serverTimestamp()
+          });
+          await setDoc(leadRef, leadPayload, { merge: true });
+        } catch (leadErr) {
+          console.warn("Could not save recruiter lead for admin outreach:", leadErr);
+        }
+      }
+
       setSuccess(`Successfully mirrored "${ingestedJob.title}" to your Ascend ATS requisitions.`);
+      if (onJobIngested) {
+        onJobIngested();
+      }
       setTimeout(() => setSuccess(null), 5000);
       setIngestedJob(null);
       setPastedText('');
+      setPdfFile(null);
+      setPdfBase64(null);
+      setPdfFileName(null);
     } catch (err: any) {
       setError('Failed to save job to database: ' + err.message);
     } finally {
@@ -121,16 +223,51 @@ export const GovJobsBridge: React.FC = () => {
         </div>
         
         <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-2">
-            <h2 className="text-2xl font-black text-white flex items-center gap-2">
-              <Building2 className="w-6 h-6 text-indigo-400" /> GovJobs Strategic Bridge
-            </h2>
-            <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-500/30 uppercase tracking-widest">
-              NEOGOV Integration
-            </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-2xl font-black text-white flex items-center gap-2">
+                {bridgeMode === 'govjobs' ? <Building2 className="w-6 h-6 text-indigo-400" /> : <Mail className="w-6 h-6 text-amber-400" />}
+                {bridgeMode === 'govjobs' ? 'GovJobs Strategic Bridge' : 'Dice & Recruiter Reach-Out Bridge'}
+              </h2>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-widest ${
+                bridgeMode === 'govjobs' 
+                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' 
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+              }`}>
+                {bridgeMode === 'govjobs' ? 'NEOGOV Integration' : 'Dice Email Parser'}
+              </span>
+            </div>
+
+            {/* Source Mode Toggle */}
+            <div className="flex bg-slate-800/80 p-1 rounded-2xl border border-slate-700/80 gap-1">
+              <button
+                type="button"
+                onClick={() => setBridgeMode('govjobs')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  bridgeMode === 'govjobs'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-indigo-300" /> GovJobs / NEOGOV
+              </button>
+              <button
+                type="button"
+                onClick={() => setBridgeMode('dice_email')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  bridgeMode === 'dice_email'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5 text-amber-300" /> Dice / Email Outreach
+              </button>
+            </div>
           </div>
           <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
-            Ingest, parse, and mirror public sector job listings from GovernmentJobs.com and local state boards. Our heuristic engine automatically extracts salary, job numbers, and department hierarchies for high-fidelity matching.
+            {bridgeMode === 'govjobs'
+              ? 'Ingest, parse, and mirror public sector job listings from GovernmentJobs.com and local state boards. Our heuristic engine automatically extracts salary, job numbers, and department hierarchies for high-fidelity matching.'
+              : 'Ingest and parse recruiter outreach emails from Dice, Tekfortune, Sibitalent, Applab Systems, and agency outreach. Extracts recruiter contact info, W2/C2C contract rates, and requirements.'}
           </p>
         </div>
       </div>
@@ -141,26 +278,74 @@ export const GovJobsBridge: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                <Clipboard className="w-4 h-4 text-indigo-500" /> Raw Job Text Ingestion
+                <Clipboard className="w-4 h-4 text-indigo-500" /> 
+                {bridgeMode === 'govjobs' ? 'Public Sector Listing Ingestion' : 'Dice & Outreach Email Ingestion'}
               </h3>
               <button 
-                onClick={() => setPastedText('')}
-                className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase"
+                onClick={() => {
+                  setPastedText('');
+                  setPdfFile(null);
+                  setPdfBase64(null);
+                  setPdfFileName(null);
+                }}
+                className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase cursor-pointer"
               >
                 Clear All
               </button>
             </div>
 
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-              Copy the entire job listing from GovernmentJobs.com (including headers like "Salary", "Job Number", etc.) and paste it below.
+              {bridgeMode === 'govjobs' 
+                ? 'Upload a PDF export or copy the entire job listing from GovernmentJobs.com (including headers like "Salary", "Job Number", etc.) and paste below.'
+                : 'Upload the PDF printout of the recruiter outreach email or paste the email text below. Direct recruiter contact info and firm details will be automatically parsed and added to Admin Leads.'}
             </p>
+
+            {/* PDF File Upload Bar */}
+            <div className="mb-4 flex items-center justify-between bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <FileText className={`w-4 h-4 ${bridgeMode === 'dice_email' ? 'text-amber-500' : 'text-indigo-500'}`} />
+                <span className="text-xs text-slate-700 dark:text-slate-300 font-bold truncate max-w-[200px] sm:max-w-xs">
+                  {pdfFileName ? `Selected PDF: ${pdfFileName}` : 'Accepts PDF export or email PDF printout'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-xs transition-all">
+                  <Download className={`w-3.5 h-3.5 rotate-180 ${bridgeMode === 'dice_email' ? 'text-amber-500' : 'text-indigo-500'}`} />
+                  <span>{pdfFileName ? 'Change PDF' : 'Upload PDF'}</span>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handlePdfFileSelect(e.target.files[0]);
+                      }
+                    }}
+                  />
+                </label>
+                {pdfFileName && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPdfFile(null);
+                      setPdfBase64(null);
+                      setPdfFileName(null);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-rose-500"
+                    title="Remove PDF"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* Prompt Tier Selector */}
             <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                  GovJobs Ingestion Prompt Tier
+                  Ingestion Prompt Tier
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
                   {promptVersion === 'v1' ? '~300ms (Heuristic)' : (promptVersion === 'v2' ? '~1.2s (Taxonomy)' : '~2.5s (STAR Prep)')}
@@ -177,7 +362,7 @@ export const GovJobsBridge: React.FC = () => {
                   }`}
                 >
                   <div className="text-xs font-bold">V1 Fast</div>
-                  <div className="text-[9px] text-slate-400 uppercase">NEOGOV Regex</div>
+                  <div className="text-[9px] text-slate-400 uppercase">Regex Engine</div>
                 </button>
                 <button
                   type="button"
@@ -206,29 +391,33 @@ export const GovJobsBridge: React.FC = () => {
               </div>
             </div>
 
-            <textarea
-              rows={12}
-              value={pastedText}
-              onChange={(e) => setPastedText(e.target.value)}
-              placeholder="Paste GovJob listing here... (e.g. Job Number: 26-00987, Salary: $24.55 Hourly...)"
-              className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
-            />
+            {!pdfFileName && (
+              <textarea
+                rows={10}
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                placeholder={bridgeMode === 'govjobs' ? "Paste GovJob listing here... (e.g. Job Number: 26-00987, Salary: $24.55 Hourly...)" : "Paste recruiter reach-out email here... (e.g. Hi Chris, I have an urgent opening for DevOps Engineer...)"}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
+              />
+            )}
 
             <div className="mt-4 flex justify-end">
               <button
                 onClick={handleIngest}
-                disabled={isIngesting || !pastedText.trim()}
-                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl text-sm font-bold flex items-center gap-2 shadow-lg transition-all"
+                disabled={isIngesting || (!pastedText.trim() && !pdfBase64)}
+                className={`px-6 py-3 text-white rounded-2xl text-sm font-bold flex items-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50 ${
+                  bridgeMode === 'dice_email' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-indigo-600 hover:bg-indigo-500'
+                }`}
               >
                 {isIngesting ? (
                   <>
                     <Sparkles className="w-4 h-4 animate-pulse" />
-                    <span>Parsing Gov Schema...</span>
+                    <span>Parsing Document...</span>
                   </>
                 ) : (
                   <>
                     <ArrowRight className="w-4 h-4" />
-                    <span>Analyze Gov Job</span>
+                    <span>{bridgeMode === 'dice_email' ? 'Analyze Recruiter Email' : 'Analyze Gov Job'}</span>
                   </>
                 )}
               </button>
@@ -332,6 +521,55 @@ export const GovJobsBridge: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Recruiter & Outreach Details (Dice / Email Mode) */}
+                {ingestedJob.recruiterInfo && (
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
+                    <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-amber-400" /> Recruiter Outreach Details
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {ingestedJob.recruiterInfo.name && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Recruiter Name</span>
+                          <span className="font-bold text-slate-200">{ingestedJob.recruiterInfo.name}</span>
+                        </div>
+                      )}
+                      {ingestedJob.recruiterInfo.firmName && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Staffing Firm</span>
+                          <span className="font-bold text-slate-200">{ingestedJob.recruiterInfo.firmName}</span>
+                        </div>
+                      )}
+                      {ingestedJob.recruiterInfo.email && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Contact Email</span>
+                          <a href={`mailto:${ingestedJob.recruiterInfo.email}`} className="font-bold text-indigo-400 hover:underline">
+                            {ingestedJob.recruiterInfo.email}
+                          </a>
+                        </div>
+                      )}
+                      {ingestedJob.recruiterInfo.phone && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Contact Phone</span>
+                          <span className="font-bold text-slate-200">{ingestedJob.recruiterInfo.phone}</span>
+                        </div>
+                      )}
+                      {ingestedJob.recruiterInfo.workAuth && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Work Authorization</span>
+                          <span className="font-bold text-emerald-400">{ingestedJob.recruiterInfo.workAuth}</span>
+                        </div>
+                      )}
+                      {ingestedJob.recruiterInfo.contractType && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Contract Terms</span>
+                          <span className="font-bold text-amber-300">{ingestedJob.recruiterInfo.contractType}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Skills & Requirements Summary */}
                 <div className="space-y-4">

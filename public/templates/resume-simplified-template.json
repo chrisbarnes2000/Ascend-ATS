@@ -1,0 +1,169 @@
+{
+  "meta": {
+    "version": "2026.10.04",
+    "purpose": "Simplified resume-to-JSON schema. Captures the data a standard resume actually contains. Optional sections may be omitted.",
+    "source_file": "sample_candidate_resume.pdf",
+    "converted_date": "2026-10-04"
+  },
+  "contact": {
+    "name": "Alex Morgan",
+    "preferred_title": "Senior Full-Stack Engineer",
+    "pronouns": "they/them",
+    "location": "Seattle, WA (Open to Remote)",
+    "phone": "+1-206-555-0142",
+    "email": "alex.morgan@example.com",
+    "linkedin": "https://linkedin.com/in/alexmorgan-dev",
+    "github": "https://github.com/alexmorgan-dev",
+    "portfolio": "https://alexmorgan.dev",
+    "languages": [
+      { "language": "English", "proficiency": "Native" },
+      { "language": "Spanish", "proficiency": "Professional Working" }
+    ]
+  },
+  "summary": {
+    "headline": "Lead Full-Stack & Distributed Systems Architect",
+    "narrative": "Results-driven Senior Full-Stack Engineer with 8+ years architecting high-throughput distributed microservices, TypeScript/React interfaces, and scalable Cloud Native systems. Passionate about developer productivity, rigorous test-driven delivery, and neurodivergent-friendly workplace communication.",
+    "years_experience": 8,
+    "target_role": "Staff Software Engineer / Engineering Lead"
+  },
+  "work_experience": [
+    {
+      "id": "exp_01",
+      "role": "Senior Software Engineer",
+      "company": "CloudScale Technologies",
+      "location": "Seattle, WA (Hybrid)",
+      "dates": "2022 - Present",
+      "current": true,
+      "description": "Led engineering of customer data streaming platform handling 250M daily ingestion events across Kubernetes clusters.",
+      "highlights": [
+        "Reduced p99 streaming pipeline latency by 38% via Go and Apache Kafka optimization.",
+        "Architected real-time WebSocket dashboard in React/TypeScript with zero-jank frame rates.",
+        "Mentored 6 junior and mid-level engineers in deterministic async patterns and unit testing."
+      ]
+    },
+    {
+      "id": "exp_02",
+      "role": "Full-Stack Software Engineer",
+      "company": "Nexus Health Solutions",
+      "location": "Remote",
+      "dates": "2018 - 2022",
+      "current": false,
+      "description": "Developed HIPAA-compliant patient communication services and automated clinical appointment routing.",
+      "highlights": [
+        "Designed and maintained resilient GraphQL API gateways serving 1.2M active patients.",
+        "Built automated CI/CD deployment pipelines on GCP and Terraform with 99.99% uptime.",
+        "Authored WCAG 2.1 AA compliant UI component library adopted organization-wide."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "B.S. in Computer Science",
+      "institution": "University of Washington",
+      "location": "Seattle, WA",
+      "dates": "2014 - 2018",
+      "notes": "Graduated Magna Cum Laude; Focus on Distributed Systems & Algorithms"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AWS Certified Solutions Architect – Professional",
+      "issuer": "Amazon Web Services",
+      "date": "2023"
+    },
+    {
+      "name": "Certified Kubernetes Administrator (CKA)",
+      "issuer": "Cloud Native Computing Foundation",
+      "date": "2022"
+    }
+  ],
+  "skills": {
+    "top_skills": [
+      "TypeScript",
+      "React",
+      "Node.js",
+      "Go",
+      "Cloud Architecture (AWS/GCP)",
+      "Distributed Systems",
+      "PostgreSQL"
+    ],
+    "programming": {
+      "primary": ["TypeScript", "JavaScript", "Go", "Python"],
+      "secondary": ["SQL", "Rust", "HTML5", "CSS3"]
+    },
+    "data_and_analytics": ["PostgreSQL", "Firestore", "Redis", "Kafka", "Elasticsearch"],
+    "cloud_and_platforms": {
+      "primary": ["AWS", "Google Cloud Platform", "Kubernetes", "Docker"],
+      "secondary": ["Terraform", "GitHub Actions", "ArgoCD"]
+    },
+    "automation_and_scripting": ["Bash", "Python", "CI/CD Workflows"],
+    "enterprise_and_governance": ["SOC 2 Type II", "HIPAA Compliance", "WCAG 2.1 AA"],
+    "development_practices": [
+      "Test-Driven Development (TDD)",
+      "Microservices Architecture",
+      "Domain-Driven Design (DDD)",
+      "Pair Programming"
+    ],
+    "other": ["System Observability (Datadog, Prometheus)"]
+  },
+  "domains": ["Cloud Infrastructure", "FinTech", "HealthTech", "Enterprise SaaS"],
+  "key_metrics": [
+    { "value": "8+", "label": "Years Experience" },
+    { "value": "250M+", "label": "Daily Events Processed" },
+    { "value": "99.99%", "label": "System Availability" }
+  ],
+  "optional": {
+    "projects": [
+      {
+        "name": "OpenSource Trust Graph Visualizer",
+        "description": "High-performance D3.js force-directed relationship engine evaluating mathematical rapport.",
+        "dates": "2024 - 2025",
+        "status": "Active",
+        "technologies": ["TypeScript", "D3.js", "Vite", "Tailwind CSS"]
+      }
+    ],
+    "volunteer": [
+      {
+        "role": "Technical Mentor",
+        "organization": "Underrepresented in Tech Initiative",
+        "dates": "2020 - Present",
+        "description": "Provide free resume evaluations and mock coding interviews for early-career engineers."
+      }
+    ],
+    "awards": ["CloudScale Engineering Excellence Award 2023"],
+    "publications": [],
+    "references": [
+      {
+        "name": "Jordan Lee",
+        "role": "VP of Engineering",
+        "company": "CloudScale Technologies",
+        "quote": "Alex is an extraordinary engineering anchor who bridges deep infrastructure rigor with empathetic mentorship."
+      }
+    ],
+    "job_preferences": {
+      "target_sectors": ["Developer Tools", "Cloud Infrastructure", "FinTech"],
+      "role_types": ["Staff Engineer", "Principal Engineer", "Engineering Manager"],
+      "work_arrangement": ["Remote", "Hybrid"],
+      "salary_expectations": "$185,000 - $220,000 USD",
+      "location_preferences": ["Seattle, WA", "San Francisco, CA", "Remote (US)"]
+    },
+    "accommodations": {
+      "summary": "Thrives with asynchronous communication and clearly structured project briefs.",
+      "working_style_preferences": [
+        "Written documentation prioritized over ad-hoc unscheduled calls",
+        "Deep focus time blocks reserved in calendar",
+        "Clear definition of done and acceptance criteria"
+      ]
+    },
+    "personal_insights": {
+      "values": ["Engineering Integrity", "Empathy", "Radical Candor", "Continuous Learning"],
+      "interests": ["Mechanical Keyboards", "Distributed Database Papers", "Long-distance Cycling"],
+      "interesting_facts": ["Built a custom 40% ergonomic split keyboard from scratch."]
+    }
+  },
+  "conversion_notes": {
+    "inconsistencies": [],
+    "missing_fields": [],
+    "assumptions": ["Salary expectation is for total base cash compensation."]
+  }
+}

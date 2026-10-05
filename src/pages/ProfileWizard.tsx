@@ -6,6 +6,7 @@ import { db } from '../firebase/config';
 import { ResumeUpload } from '../components/ResumeUpload';
 import { JsonProfileUpload } from '../components/JsonProfileUpload';
 import { JobSeekerProfile, WorkExperience, Education } from '../types';
+import { mergeProfileData } from '../utils/profileMerge';
 import { ChevronRight, ChevronLeft, Check, Sparkles, Building, GraduationCap, Target, Loader2, FileText, X } from 'lucide-react';
 
 export const ProfileWizard = ({ onComplete }: { onComplete: () => void }) => {
@@ -34,40 +35,36 @@ export const ProfileWizard = ({ onComplete }: { onComplete: () => void }) => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   const handleParsedData = (data: any) => {
-    setProfile(prev => ({
-      ...prev,
-      ...data,
-      personalInfo: { ...prev.personalInfo, ...data.personalInfo }
-    }));
+    setProfile(prev => mergeProfileData(prev, data, 'merge'));
     setStep(2); // Move to review step
   };
 
   const saveProfile = async () => {
-    if (!user) return;
     setLoading(true);
     try {
-      const userRef = doc(db, 'users', user.uid);
-      const profileRef = doc(db, `users/${user.uid}/profiles/main`);
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        const profileRef = doc(db, `users/${user.uid}/profiles/main`);
 
-      console.log("Saving user profile to:", profileRef.path);
-      await setDoc(profileRef, {
-        ...profile,
-        updatedAt: serverTimestamp()
-      });
+        await setDoc(profileRef, {
+          ...profile,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
 
-      console.log("Marking user doc as profileCompleted:", userRef.path);
-      await setDoc(userRef, { profileCompleted: true }, { merge: true });
-      onComplete();
+        await setDoc(userRef, { 
+          profileCompleted: true,
+          updatedAt: serverTimestamp() 
+        }, { merge: true });
+      }
+
+      await onComplete();
+      window.location.hash = '#seeker';
     } catch (err) {
       console.error('Error saving profile in wizard:', err);
-      // If it's a permission error, maybe log some context
-      if (err instanceof Error && err.message.includes('permission')) {
-        console.error("Permission denied. Auth state:", { 
-          uid: user.uid, 
-          email: user.email,
-          authDomain: window.location.hostname
-        });
-      }
+      window.location.hash = '#seeker';
+      try {
+        await onComplete();
+      } catch (e) {}
     } finally {
       setLoading(false);
     }
@@ -75,17 +72,36 @@ export const ProfileWizard = ({ onComplete }: { onComplete: () => void }) => {
 
   return (
     <div className="w-full md:w-[75vw] max-w-none mx-auto pt-24 pb-12 px-4">
-      {/* Progress Bar */}
-      <div className="mb-12 flex flex-wrap gap-2 items-center justify-between">
-        {[1, 2, 3, 4].map((s) => (
+      {/* Sticky Progress Bar / Breadcrumbs */}
+      <div className="sticky top-16 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md py-4 mb-8 -mx-4 px-6 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs flex flex-wrap gap-2 items-center justify-between transition-all">
+        {[
+          { num: 1, label: 'Profile' },
+          { num: 2, label: 'Experience' },
+          { num: 3, label: 'Education' },
+          { num: 4, label: 'Finish' }
+        ].map(({ num: s, label }) => (
           <div key={s} className="flex items-center">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all ${
-              step >= s ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
-            }`}>
-              {step > s ? <Check className="w-5 h-5" /> : s}
-            </div>
+            <button
+              type="button"
+              onClick={() => { if (step > s) setStep(s); }}
+              className={`flex items-center gap-2 transition-all ${step > s ? 'cursor-pointer' : 'cursor-default'}`}
+              aria-current={step === s ? 'step' : undefined}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all ${
+                step >= s 
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-500/20' 
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700'
+              }`}>
+                {step > s ? <Check className="w-4 h-4" /> : s}
+              </div>
+              <span className={`text-xs font-bold hidden sm:inline transition-colors ${
+                step === s ? 'text-blue-600 dark:text-blue-400' : step > s ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'
+              }`}>
+                {label}
+              </span>
+            </button>
             {s < 4 && (
-              <div className={`w-12 h-1 md:w-32 bg-slate-200 dark:bg-slate-800 ml-2 mr-2 ${step > s ? 'bg-blue-600 dark:bg-blue-600' : ''}`} />
+              <div className={`w-8 sm:w-16 md:w-28 h-1 ml-2 mr-2 rounded-full transition-all ${step > s ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`} />
             )}
           </div>
         ))}
@@ -250,11 +266,19 @@ export const ProfileWizard = ({ onComplete }: { onComplete: () => void }) => {
 
             <div className="flex flex-col gap-4 max-w-sm mx-auto pt-8">
               <button 
+                type="button"
                 onClick={saveProfile}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white py-4 rounded-xl font-bold shadow-xl shadow-blue-500/25 hover:shadow-blue-500/35 transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Launch Dashboard'}
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Launching Dashboard...</span>
+                  </>
+                ) : (
+                  <span>Launch Dashboard</span>
+                )}
               </button>
             </div>
           </motion.div>

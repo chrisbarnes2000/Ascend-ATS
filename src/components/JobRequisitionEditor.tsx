@@ -21,12 +21,16 @@ import {
   Award,
   Layers,
   ArrowRight,
-  Filter
+  Filter,
+  Plus,
+  Globe
 } from 'lucide-react';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../hooks/useAuth';
-import { Job, JobRevision, JobTemplateBenchmark } from '../types';
+import { Job, JobRevision, JobTemplateBenchmark, JobStatus } from '../types';
+import { detectMaterialShifts } from '../utils/materialShiftEngine';
+import { GovJobsBridge } from './GovJobsBridge';
 
 // Curated Top-Performing Community Job Templates
 export const COMMUNITY_TEMPLATES: JobTemplateBenchmark[] = [
@@ -77,25 +81,41 @@ export const COMMUNITY_TEMPLATES: JobTemplateBenchmark[] = [
   }
 ];
 
+export type RequisitionSubTab = 'editor' | 'audits' | 'templates' | 'govjobs';
+
 interface JobRequisitionEditorProps {
   companyId?: string;
   companyName?: string;
+  initialSubTab?: RequisitionSubTab;
   onJobUpdated?: () => void;
 }
 
 export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
   companyId,
   companyName,
+  initialSubTab,
   onJobUpdated
 }) => {
   const { user, appUser } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'editor' | 'audits' | 'templates'>('editor');
+  const [isCreating, setIsCreating] = useState(false);
+  const [activeSubTab, setActiveSubTab] = useState<RequisitionSubTab>(initialSubTab || 'editor');
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+  const [statusFilter, setStatusFilter] = useState<JobStatus | 'all'>('active');
 
   // Edit Form State
   const [editTitle, setEditTitle] = useState('');
+  const [editJobNumber, setEditJobNumber] = useState('');
+  const [editDepartment, setEditDepartment] = useState('');
+  const [editStatus, setEditStatus] = useState<JobStatus>('active');
+  const [editTargetFillDate, setEditTargetFillDate] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editRequirements, setEditRequirements] = useState('');
   const [editSalaryMin, setEditSalaryMin] = useState('80000');
@@ -126,30 +146,37 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
     if (!user) return;
     setLoading(true);
     try {
-      let q = query(collection(db, 'jobs'));
-      if (appUser?.role !== 'admin' && companyId) {
+      let q;
+      if (companyId) {
         q = query(collection(db, 'jobs'), where('companyId', '==', companyId));
+      } else {
+        const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin';
+        if (isAdmin) {
+          q = query(collection(db, 'jobs'));
+        } else {
+          q = query(collection(db, 'jobs'), where('companyId', '==', user.uid));
+        }
       }
       
       const snap = await getDocs(q);
       const list: Job[] = [];
       snap.forEach(d => {
-        list.push({ id: d.id, ...d.data() } as Job);
+        list.push({ id: d.id, ...(d.data() as Record<string, any>) } as Job);
       });
 
-      // Fallback matching by company name if no companyId matches
-      if (list.length === 0 && companyName) {
+      // Secondary fallback matching by company name strictly if list is empty and companyName provided
+      if (list.length === 0 && companyName && companyName !== 'Unknown Company') {
         const nameQ = query(collection(db, 'jobs'), where('companyName', '==', companyName));
         const nameSnap = await getDocs(nameQ);
         nameSnap.forEach(d => {
           if (!list.some(j => j.id === d.id)) {
-            list.push({ id: d.id, ...d.data() } as Job);
+            list.push({ id: d.id, ...(d.data() as Record<string, any>) } as Job);
           }
         });
       }
 
       setJobs(list);
-      if (list.length > 0 && !selectedJob) {
+      if (list.length > 0 && !selectedJob && !isCreating) {
         selectJobForEditing(list[0]);
       }
     } catch (err) {
@@ -164,8 +191,13 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
   }, [user, companyId, companyName]);
 
   const selectJobForEditing = (j: Job) => {
+    setIsCreating(false);
     setSelectedJob(j);
     setEditTitle(j.title || '');
+    setEditJobNumber(j.jobNumber || '');
+    setEditDepartment(j.department || '');
+    setEditStatus(j.status || 'active');
+    setEditTargetFillDate(j.targetFillDate || '');
     setEditDescription(j.description || '');
     setEditRequirements(j.requirements || '');
     setEditSalaryMin(String(j.parsedCriteria?.salaryRange?.min || 80000));
@@ -197,6 +229,31 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
     setRiskAlertMessage(null);
   };
 
+  const startNewRequisition = () => {
+    setSelectedJob(null);
+    setIsCreating(true);
+    setEditTitle('');
+    setEditJobNumber(`REQ-${Math.floor(1000 + Math.random() * 9000)}`);
+    setEditDepartment('');
+    setEditStatus('draft');
+    setEditTargetFillDate('');
+    setEditDescription('');
+    setEditRequirements('');
+    setEditSalaryMin('80000');
+    setEditSalaryMax('130000');
+    setEditSkills('TypeScript, React');
+    setEditRequiredSkills('TypeScript, React');
+    setEditPreferredSkills('Docker, AWS');
+    setEditWorkplaceType('Remote');
+    setEditLocation('San Francisco, CA');
+    setEditBenefits(['Health & Dental Insurance', '401(k) Matching', 'Unlimited PTO']);
+    setEditWillingToConsiderNotes('');
+    setEditSettlingOptions([]);
+    setEditReasonNotes('Initial requisition creation.');
+    setEditReasonCategory('other');
+    setActiveSubTab('editor');
+  };
+
   // Pre-fill Edit Form from a Community Benchmark Template
   const handleApplyTemplate = (tmpl: JobTemplateBenchmark) => {
     setEditTitle(tmpl.title);
@@ -214,9 +271,9 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
   // Submit Job Modification with Nefarious Behavior Detection & Audit Logging
   const handleSaveModification = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedJob) return;
+    if (!user || (!selectedJob && !isCreating)) return;
     if (!editReasonNotes.trim()) {
-      alert("Please provide a valid justification note explaining this job description modification.");
+      alert("Please provide a valid justification note explaining this job requisition entry.");
       return;
     }
 
@@ -225,42 +282,40 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
     setRiskAlertMessage(null);
 
     try {
-      const oldMin = selectedJob.parsedCriteria?.salaryRange?.min || 80000;
-      const oldMax = selectedJob.parsedCriteria?.salaryRange?.max || 130000;
+      const oldMin = selectedJob?.parsedCriteria?.salaryRange?.min || 80000;
+      const oldMax = selectedJob?.parsedCriteria?.salaryRange?.max || 130000;
       const newMin = Number(editSalaryMin) || oldMin;
       const newMax = Number(editSalaryMax) || oldMax;
 
-      // 1. Calculate Nefarious / Material Shift Flags
-      const materialDetails: string[] = [];
-      let flaggedRisk: 'low' | 'moderate' | 'high_bait_and_switch' = 'low';
-      let riskScoreIncrease = 0;
+      // 1. Calculate Nefarious / Material Shift Flags & Semantic Version via Safety Engine
+      const candidateNewJob: Partial<Job> = {
+        title: editTitle.trim(),
+        description: editDescription.trim(),
+        requirements: editRequirements.trim(),
+        salaryMin: newMin,
+        salaryMax: newMax,
+        workplaceType: editWorkplaceType,
+        location: editLocation.trim(),
+        parsedCriteria: {
+          skills: [],
+          minExperience: selectedJob?.parsedCriteria?.minExperience || 2,
+          salaryRange: { min: newMin, max: newMax },
+          workplaceType: editWorkplaceType,
+          location: editLocation.trim()
+        }
+      };
 
-      // Check max salary drop post-creation
-      if (newMax < oldMax * 0.95) {
-        const dropPct = Math.round(((oldMax - newMax) / oldMax) * 100);
-        materialDetails.push(`Max salary reduced by ${dropPct}% ($${oldMax.toLocaleString()} ➔ $${newMax.toLocaleString()})`);
-        flaggedRisk = 'high_bait_and_switch';
-        riskScoreIncrease += 40;
-      }
+      const evaluation = selectedJob ? detectMaterialShifts(selectedJob, candidateNewJob) : {
+        shifts: [],
+        riskScoreIncrease: 0,
+        totalRiskScore: 0,
+        flaggedRiskLevel: 'low' as const,
+        transparencyRating: 'verified_transparent' as const,
+        nextVersionNumber: 'v1.0.0'
+      };
 
-      // Check min salary drop
-      if (newMin < oldMin * 0.90) {
-        const dropPct = Math.round(((oldMin - newMin) / oldMin) * 100);
-        materialDetails.push(`Min salary reduced by ${dropPct}% ($${oldMin.toLocaleString()} ➔ $${newMin.toLocaleString()})`);
-        if (flaggedRisk !== 'high_bait_and_switch') flaggedRisk = 'moderate';
-        riskScoreIncrease += 25;
-      }
-
-      // Check scope expansion / requirements length increase (>50% longer text added)
-      if (editRequirements.length > selectedJob.requirements.length * 1.5 && selectedJob.requirements.length > 50) {
-        materialDetails.push(`Substantial requirements scope expansion (+${editRequirements.length - selectedJob.requirements.length} chars)`);
-        if (flaggedRisk === 'low') flaggedRisk = 'moderate';
-        riskScoreIncrease += 15;
-      }
-
-      // Calculate new Version string
-      const currentRevCount = (selectedJob.revisions || []).length;
-      const nextVersionNumber = `v${1 + Math.floor((currentRevCount + 1) / 2)}.${(currentRevCount + 1) % 2 === 0 ? '0' : '5'}`;
+      const materialDetails = evaluation.shifts.map(s => s.description);
+      const nextVersionNumber = isCreating ? 'v1.0.0' : evaluation.nextVersionNumber;
 
       const newRevision: JobRevision = {
         id: `rev-${Date.now()}`,
@@ -270,41 +325,45 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
         modifiedByUid: user.uid,
         editReasonCategory,
         editReasonNotes: editReasonNotes.trim(),
-        previousValues: {
+        previousValues: selectedJob ? {
           title: selectedJob.title,
           description: selectedJob.description,
           requirements: selectedJob.requirements,
           salaryMin: oldMin,
-          salaryMax: oldMax
-        },
+          salaryMax: oldMax,
+          workplaceType: selectedJob.workplaceType,
+          location: selectedJob.location
+        } : {},
         newValues: {
           title: editTitle,
           description: editDescription,
           requirements: editRequirements,
           salaryMin: newMin,
-          salaryMax: newMax
+          salaryMax: newMax,
+          workplaceType: editWorkplaceType,
+          location: editLocation
         },
-        materialChangeDetected: materialDetails.length > 0,
+        materialChangeDetected: evaluation.shifts.length > 0,
         materialChangeDetails: materialDetails,
-        flaggedRiskLevel: flaggedRisk
+        materialShifts: evaluation.shifts,
+        flaggedRiskLevel: evaluation.flaggedRiskLevel
       };
 
-      const updatedRiskScore = Math.min(100, (selectedJob.nefariousRiskScore || 0) + riskScoreIncrease);
-      const updatedNefariousFlags = Array.from(new Set([...(selectedJob.nefariousFlags || []), ...materialDetails]));
-      
-      let transparencyRating: 'verified_transparent' | 'minor_edits' | 'under_review' | 'flagged' = 'verified_transparent';
-      if (updatedRiskScore > 35) transparencyRating = 'flagged';
-      else if (updatedRiskScore > 15) transparencyRating = 'under_review';
-      else if (currentRevCount > 0) transparencyRating = 'minor_edits';
+      const updatedRiskScore = evaluation.totalRiskScore;
+      const updatedNefariousFlags = Array.from(new Set([...(selectedJob?.nefariousFlags || []), ...materialDetails]));
+      const transparencyRating = evaluation.transparencyRating;
 
       const reqSkillsArr = editRequiredSkills ? editRequiredSkills.split(',').map(s => s.trim()).filter(Boolean) : (editSkills ? editSkills.split(',').map(s => s.trim()).filter(Boolean) : ['Communication']);
       const prefSkillsArr = editPreferredSkills ? editPreferredSkills.split(',').map(s => s.trim()).filter(Boolean) : [];
       const combinedSkills = Array.from(new Set([...reqSkillsArr, ...prefSkillsArr]));
 
       // 2. Persist to Firestore
-      const jobRef = doc(db, 'jobs', selectedJob.id);
-      const updateData = {
+      const updateData: any = {
         title: editTitle.trim(),
+        jobNumber: editJobNumber.trim(),
+        department: editDepartment.trim(),
+        status: editStatus,
+        targetFillDate: editTargetFillDate,
         description: editDescription.trim(),
         requirements: editRequirements.trim(),
         workplaceType: editWorkplaceType,
@@ -316,11 +375,13 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
         settlingOptions: editSettlingOptions,
         currentVersion: nextVersionNumber,
         updatedAt: serverTimestamp(),
+        companyId: companyId || user.uid,
+        companyName: companyName || appUser?.companyName || 'Unknown Company',
         parsedCriteria: {
           skills: combinedSkills,
           requiredSkills: reqSkillsArr,
           preferredSkills: prefSkillsArr,
-          minExperience: selectedJob.parsedCriteria?.minExperience || 2,
+          minExperience: selectedJob?.parsedCriteria?.minExperience || 2,
           salaryRange: { min: newMin, max: newMax },
           workplaceType: editWorkplaceType,
           location: editLocation.trim(),
@@ -334,47 +395,39 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
         transparencyRating
       };
 
-      await updateDoc(jobRef, updateData);
+      if (isCreating) {
+        updateData.createdAt = serverTimestamp();
+        const newJobRef = await addDoc(collection(db, 'jobs'), updateData);
+        
+        const newJobObj: Job = {
+          id: newJobRef.id,
+          ...updateData,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          revisions: [newRevision]
+        };
+        setJobs(prev => [newJobObj, ...prev]);
+        setSelectedJob(newJobObj);
+        setIsCreating(false);
+        setSaveSuccess(`New job requisition "${editTitle}" created successfully!`);
+      } else if (selectedJob) {
+        const jobRef = doc(db, 'jobs', selectedJob.id);
+        await updateDoc(jobRef, updateData);
 
-      // 3. Local State Sync
-      const updatedJobObj: Job = {
-        ...selectedJob,
-        title: editTitle.trim(),
-        description: editDescription.trim(),
-        requirements: editRequirements.trim(),
-        workplaceType: editWorkplaceType,
-        location: editLocation.trim(),
-        benefits: editBenefits,
-        requiredSkills: reqSkillsArr,
-        preferredSkills: prefSkillsArr,
-        willingToConsiderNotes: editWillingToConsiderNotes.trim(),
-        settlingOptions: editSettlingOptions,
-        currentVersion: nextVersionNumber,
-        parsedCriteria: {
-          skills: combinedSkills,
-          requiredSkills: reqSkillsArr,
-          preferredSkills: prefSkillsArr,
-          minExperience: selectedJob.parsedCriteria?.minExperience || 2,
-          salaryRange: { min: newMin, max: newMax },
-          workplaceType: editWorkplaceType,
-          location: editLocation.trim(),
-          benefits: editBenefits,
-          willingToConsiderNotes: editWillingToConsiderNotes.trim(),
-          settlingOptions: editSettlingOptions
-        },
-        revisions: [...(selectedJob.revisions || []), newRevision],
-        nefariousRiskScore: updatedRiskScore,
-        nefariousFlags: updatedNefariousFlags,
-        transparencyRating
-      };
-
-      setSelectedJob(updatedJobObj);
-      setJobs(prev => prev.map(j => j.id === selectedJob.id ? updatedJobObj : j));
-      
-      if (materialDetails.length > 0) {
-        setRiskAlertMessage(`⚠️ Audit Guardrail Alert: Potential material change flagged (${materialDetails.join('; ')}). Logged for HR transparency compliance.`);
+        const updatedJobObj: Job = {
+          ...selectedJob,
+          ...updateData,
+          revisions: [...(selectedJob.revisions || []), newRevision]
+        };
+        setSelectedJob(updatedJobObj);
+        setJobs(prev => prev.map(j => j.id === selectedJob.id ? updatedJobObj : j));
+        
+        if (materialDetails.length > 0) {
+          setRiskAlertMessage(`⚠️ Audit Guardrail Alert: Potential material change flagged (${materialDetails.join('; ')}). Logged for HR transparency compliance.`);
+        }
+        setSaveSuccess(`Job requisition updated successfully! Revision ${nextVersionNumber} logged in audit history.`);
       }
-      setSaveSuccess(`Job description updated successfully! Revision ${nextVersionNumber} logged in audit history.`);
+
       setEditReasonNotes('');
       if (onJobUpdated) onJobUpdated();
 
@@ -436,6 +489,17 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Community Templates
           </button>
+          <button
+            onClick={() => setActiveSubTab('govjobs')}
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeSubTab === 'govjobs' 
+                ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs font-extrabold ring-1 ring-emerald-500/30' 
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-500" /> GovJobs Bridge
+            <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-1.5 py-0.5 rounded-full border border-emerald-500/20">NEOGOV</span>
+          </button>
         </div>
       </div>
 
@@ -443,23 +507,57 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Job Selection List */}
         <div className="lg:col-span-4 border-r border-slate-100 dark:border-slate-800 pr-0 lg:pr-6 space-y-3">
-          <label className="block text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-            <span>Select Requisition ({jobs.length})</span>
-            <span className="text-[10px] text-indigo-500 lowercase font-normal">Active & Drafts</span>
-          </label>
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <label className="block text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+              <span>Requisitions ({jobs.length})</span>
+            </label>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setActiveSubTab('govjobs')}
+                className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all"
+                title="Import public sector job from NEOGOV / GovernmentJobs.com"
+              >
+                <Globe className="w-3 h-3 text-emerald-500" /> +GovJob
+              </button>
+              <button
+                onClick={startNewRequisition}
+                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all"
+              >
+                <Plus className="w-3 h-3" /> New Req
+              </button>
+            </div>
+          </div>
+
+          {/* Status Filter Toggle */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-3 overflow-x-auto">
+            {['all', 'active', 'draft', 'planned', 'archived'].map(st => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st as any)}
+                className={`px-2 py-1 rounded-lg text-[10px] font-bold capitalize transition-all whitespace-nowrap ${
+                  statusFilter === st
+                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                }`}
+              >
+                {st}
+              </button>
+            ))}
+          </div>
 
           {loading ? (
             <div className="p-6 text-center text-slate-400 text-xs italic">Loading requisitions...</div>
-          ) : jobs.length === 0 ? (
+          ) : jobs.filter(j => statusFilter === 'all' || j.status === statusFilter).length === 0 ? (
             <div className="p-6 text-center text-slate-400 text-xs italic bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
-              No active job requisitions found for this company profile.
+              No {statusFilter !== 'all' ? statusFilter : ''} requisitions found.
             </div>
           ) : (
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-              {jobs.map((j) => {
+              {jobs.filter(j => statusFilter === 'all' || j.status === statusFilter).map((j) => {
                 const isSelected = selectedJob?.id === j.id;
                 const hasFlags = (j.nefariousFlags || []).length > 0;
                 const revCount = (j.revisions || []).length;
+                const statusColor = j.status === 'active' ? 'text-emerald-500' : j.status === 'draft' ? 'text-slate-400' : j.status === 'planned' ? 'text-blue-500' : 'text-rose-500';
 
                 return (
                   <button
@@ -475,15 +573,15 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
                       <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 line-clamp-1">
                         {j.title}
                       </span>
-                      <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded-md text-slate-700 dark:text-slate-300 shrink-0">
-                        {j.currentVersion || 'v1.0'}
+                      <span className={`text-[10px] font-black uppercase ${statusColor}`}>
+                        {j.status || 'active'}
                       </span>
                     </div>
 
                     <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-2">
-                      <span>${((j.parsedCriteria?.salaryRange?.min || 80000) / 1000).toFixed(0)}k - ${((j.parsedCriteria?.salaryRange?.max || 130000) / 1000).toFixed(0)}k</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{j.jobNumber || 'NO-REQ'}</span>
                       <span>•</span>
-                      <span>{j.companyName}</span>
+                      <span>{j.department || 'General'}</span>
                     </div>
 
                     <div className="flex items-center justify-between gap-1 text-[10px] pt-2 border-t border-slate-200/50 dark:border-slate-800/50">
@@ -493,11 +591,11 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
 
                       {hasFlags ? (
                         <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold px-2 py-0.5 rounded-md border border-amber-500/30 flex items-center gap-1">
-                          <AlertTriangle className="w-2.5 h-2.5" /> Material Shift Flag
+                          <AlertTriangle className="w-2.5 h-2.5" /> Material Shift
                         </span>
                       ) : (
-                        <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30 flex items-center gap-1">
-                          <ShieldCheck className="w-2.5 h-2.5" /> High Integrity
+                        <span className="text-[9px] text-slate-400">
+                          v{j.currentVersion || '1.0'}
                         </span>
                       )}
                     </div>
@@ -512,7 +610,7 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
         <div className="lg:col-span-8">
           {/* Sub-Tab 1: Requisition Editor */}
           {activeSubTab === 'editor' && (
-            selectedJob ? (
+            (selectedJob || isCreating) ? (
               <form onSubmit={handleSaveModification} className="space-y-4">
                 {/* Save Feedback Banners */}
                 {saveSuccess && (
@@ -532,14 +630,64 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-2">
                     <span className="bg-indigo-600 text-white font-extrabold text-xs px-2.5 py-1 rounded-xl">
-                      Editing {selectedJob.currentVersion || 'v1.0'}
+                      {isCreating ? 'Creating New Requisition' : `Editing ${selectedJob?.currentVersion || 'v1.0'}`}
                     </span>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      ID: {selectedJob.id.slice(0, 8)}...
-                    </span>
+                    {!isCreating && (
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        ID: {selectedJob?.id.slice(0, 8)}...
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-slate-400 font-medium">
-                    All modifications log timestamp & editor identity in HR Audit Trail.
+                    All entries log timestamp & identity in HR Audit Trail.
+                  </div>
+                </div>
+
+                {/* Status & Category Bar */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-3.5 bg-slate-100/50 dark:bg-slate-800/30 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">Requisition Status</label>
+                    <select
+                      value={editStatus}
+                      onChange={e => setEditStatus(e.target.value as JobStatus)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="draft">Draft (Private)</option>
+                      <option value="active">Active (Publicly Listed)</option>
+                      <option value="planned">Planned (Future Opening)</option>
+                      <option value="filled">Filled (Hired)</option>
+                      <option value="archived">Archived (Closed)</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">Req Number</label>
+                    <input
+                      type="text"
+                      value={editJobNumber}
+                      onChange={e => setEditJobNumber(e.target.value)}
+                      placeholder="e.g. REQ-2024-001"
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">Department</label>
+                    <input
+                      type="text"
+                      value={editDepartment}
+                      onChange={e => setEditDepartment(e.target.value)}
+                      placeholder="e.g. Engineering, Sales"
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase mb-1">Target Fill Date</label>
+                    <input
+                      type="date"
+                      value={editTargetFillDate}
+                      onChange={e => setEditTargetFillDate(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
+                    />
                   </div>
                 </div>
 
@@ -998,6 +1146,21 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Sub-Tab 4: GovJobs Strategic Bridge (NEOGOV Integration) */}
+          {activeSubTab === 'govjobs' && (
+            <div className="space-y-4">
+              <GovJobsBridge 
+                companyId={companyId}
+                companyName={companyName}
+                onJobIngested={() => {
+                  fetchRequisitions();
+                  setActiveSubTab('editor');
+                  if (onJobUpdated) onJobUpdated();
+                }}
+              />
             </div>
           )}
         </div>

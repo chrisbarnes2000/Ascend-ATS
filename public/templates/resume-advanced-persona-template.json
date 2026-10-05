@@ -1,0 +1,335 @@
+{
+  "meta": {
+    "version": "2026.10.04",
+    "purpose": "Standardized portfolio schema for converting resumes into a consistent, machine-readable JSON format.",
+    "source": "Adapted from Chris Barnes professional persona (2025–2026)",
+    "usage": "Fill each field with data from the resume. Omit or null out fields that do not apply. Maintain consistent date formats (e.g., 'Mon YYYY' or 'YYYY–YYYY'). Use arrays for multi-value fields."
+  },
+  "persona": {
+    "identity": {
+      "name": "Christopher Barnes",
+      "preferred_title": "Senior Software Architect & Safety-Critical Engineering Lead",
+      "pronouns": "he/him",
+      "location": "San Francisco, CA & Remote",
+      "timezone": "America/Los_Angeles (PT)",
+      "availability": "Open to high-impact strategic advisory and principal engineering leadership",
+      "languages": [
+        { "language": "English", "proficiency": "Native" }
+      ]
+    },
+    "contact": {
+      "phone": "+1-415-555-0188",
+      "email": "Chris.Barnes.2000@me.com",
+      "linkedin": "https://linkedin.com/in/chrisbarnes-architect",
+      "github": "https://github.com/chrisbarnes",
+      "portfolio": "https://ascendats.com",
+      "website": "https://rapportverse.com"
+    },
+    "brand": {
+      "hero_tagline": "Architecting Zero-Defect Safety-Critical Systems & Mathematical Rapport Topologies",
+      "hero_subtitle": "Pioneering deterministic software engineering, NASA JPL Power of 10 discipline, and neurodivergent-friendly connection architectures.",
+      "elevator_pitch": "Safety-Critical Engineering Lead and System Architect with extensive background designing high-reliability fault-tolerant platforms, real-time trust topologies, and automated ATS compliance frameworks.",
+      "social_handle_tags": ["#SafetyCritical", "#SystemArchitecture", "#NASA_JPL_PowerOf10", "#NeurodiversityInTech"],
+      "social_handle_display": "@cbarnes_architect"
+    },
+    "professional_identity": {
+      "narrative": "Senior Software Architect with over a decade of technical leadership across distributed systems, defense-grade compliance, and relationship analytics. Dedicated to mathematical precision, eliminating runtime exceptions, and cultivating transparent organizational trust.",
+      "core_identities": [
+        "Safety-Critical Software Architect",
+        "Systems Thinker & Reliability Engineer",
+        "Neurodiversity Advocate",
+        "Empathetic Technical Leader"
+      ],
+      "career_phases": [
+        {
+          "phase": "Foundational Infrastructure & Distributed Computing (2014 - 2019)",
+          "description": "Engineered real-time data ingestion pipelines and microservices architectures in enterprise high-concurrency environments."
+        },
+        {
+          "phase": "Strategic Technical Leadership & Safety Architecture (2020 - Present)",
+          "description": "Directing multi-tenant cloud architectures, authoring JPL Power-of-10 safety standards, and launching Ascend ATS & RapportVerse platforms."
+        }
+      ]
+    },
+    "attribution": {
+      "cognitive_approach": "Systemic first-principles decomposition with rigorous invariant verification and deterministic state bounds.",
+      "assessed_profile": "High Analytical / High Empathy Architect",
+      "self_descriptors": ["Meticulous", "Deterministic", "Empathetic", "Direct", "Reliable"],
+      "guiding_principles": [
+        "NASA JPL Power of 10 Safety Rules across all software layers",
+        "Radical transparency in candidate evaluations and ATS pipelines",
+        "Accessibility (WCAG 2.1/2.2 AA) as a foundational engineering requirement"
+      ],
+      "core_values": ["Integrity", "Mathematical Rapport", "Psychological Safety", "Continuous Improvement"],
+      "sponsorship_statement": "Committed to sponsoring neurodivergent and non-traditional engineering talent into safety-critical disciplines.",
+      "preferred_attribution": "Chris Barnes, Senior Software Architect",
+      "pronouns": "he/him"
+    },
+    "key_metrics": [
+      { "value": "100%", "label": "Zero-Warning Linter Gate" },
+      { "value": "99.999%", "label": "Availability SLA" },
+      { "value": "10+", "label": "Years Systems Engineering" },
+      { "value": "4", "label": "System Architecture Pillars" }
+    ],
+    "ventures": {
+      "founder": [
+        {
+          "id": "v_01",
+          "name": "Ascend ATS",
+          "role": "Founder & Principal Architect",
+          "dates": "2024 - Present",
+          "tagline": "Next-Generation Intelligent Candidate Profiling & High-Compliance ATS",
+          "mission": "Empower candidates and hiring teams with transparent algorithmic matching, neurodivergent-friendly privacy controls, and direct requisition assessment.",
+          "status": "Active Production",
+          "technologies": {
+            "frontend": ["React 19", "TypeScript", "Tailwind CSS", "Lucide React", "Motion"],
+            "backend": ["Express", "Node.js", "Firebase Admin"],
+            "database": ["Google Cloud Firestore", "Cloud SQL PostgreSQL"],
+            "intelligence_engine": ["Gemini 2.5 Flash SDK", "Drizzle ORM"]
+          },
+          "highlights": [
+            "Engineered 4 distinct profile topologies (Job Seeker, Recruiter, Company Owner, Admin).",
+            "Built 4-tier privacy cloak engine protecting candidate anonymity.",
+            "Integrated multi-format JSON resume parser with automated skill graph extraction."
+          ]
+        }
+      ],
+      "family_projects": {
+        "studio": "Barnes Innovation Labs",
+        "studio_domain": "barneslabs.io",
+        "studio_email": "chris@barneslabs.io",
+        "studio_github": "github.com/barnes-labs",
+        "dates": "2020 - Present",
+        "description": "Collaborative research lab focused on mathematical rapport topologies and human trust visualization.",
+        "projects": [
+          {
+            "id": "fp_01",
+            "name": "RapportVerse Trust Engine",
+            "client": "Barnes Labs",
+            "role": "Lead Architect",
+            "dates": "2025 - 2026",
+            "tagline": "Mathematical Relationship Trust Visualizer",
+            "mission": "Model the David Maister Trust equation (Credibility + Reliability + Intimacy / Self-Orientation) via D3 force-directed topologies.",
+            "status": "Active Production",
+            "technologies": {
+              "frontend": ["React", "TypeScript", "D3.js", "Canvas"],
+              "backend": ["Node.js", "Firebase Firestore"],
+              "database": ["Firestore"],
+              "intelligence_engine": ["Custom Mathematical Topology Matrix"]
+            },
+            "highlights": [
+              "Visualizes complex multi-node organizational trust networks.",
+              "Enforces zero-division anomalies on zero self-orientation nodes."
+            ]
+          }
+        ]
+      }
+    },
+    "work_experience": [
+      {
+        "id": "we_01",
+        "role": "Senior Software Architect & Engineering Lead",
+        "company": "Ascend ATS / RapportVerse",
+        "location": "San Francisco, CA (Remote)",
+        "dates": "2023 - Present",
+        "highlights": [
+          "Authored complete ITIL v4 Service Management governance framework.",
+          "Implemented strict NASA JPL Power of 10 safety architecture rules for full-stack web applications.",
+          "Architected multi-tenant recruiter isolation guaranteeing zero cross-company data leakage."
+        ]
+      },
+      {
+        "id": "we_02",
+        "role": "Principal Systems Engineer",
+        "company": "Vanguard Distributed Platforms",
+        "location": "San Francisco, CA",
+        "dates": "2019 - 2023",
+        "highlights": [
+          "Spearheaded enterprise cloud migration to Google Cloud Platform and Kubernetes.",
+          "Designed distributed fault-tolerant job scheduler processing 50M transactions daily.",
+          "Implemented zero-trust security perimeter and automated vulnerability gates."
+        ]
+      }
+    ],
+    "volunteer_internships": [
+      {
+        "role": "Technical Advisor & Mentor",
+        "organization": "Neurodiversity in Technology Alliance",
+        "location": "Remote",
+        "dates": "2021 - Present",
+        "description": "Advise startups and enterprises on creating sensory-friendly, asynchronous, and accessible engineering environments."
+      }
+    ],
+    "education": [
+      {
+        "degree": "B.S. in Computer Science & Systems Engineering",
+        "institution": "University of California, Berkeley",
+        "dates": "2010 - 2014",
+        "notes": "Focus on Distributed Systems, Compilers, and Safety-Critical Computing"
+      }
+    ],
+    "certifications": [
+      "Google Cloud Certified Professional Cloud Architect",
+      "Certified Information Systems Security Professional (CISSP)",
+      "ITIL v4 Strategic Leader"
+    ],
+    "skills": {
+      "top_skills": [
+        "Safety-Critical Architecture (NASA JPL)",
+        "TypeScript",
+        "React",
+        "Node.js",
+        "Google Cloud Platform (GCP)",
+        "PostgreSQL / Firestore",
+        "Distributed Systems & Concurrency",
+        "ITIL v4 Service Management",
+        "Accessibility (WCAG 2.1/2.2 AA)"
+      ],
+      "cloud_and_infrastructure": {
+        "primary": ["Google Cloud Platform", "Kubernetes", "Docker", "Terraform"],
+        "secondary": ["AWS", "Cloudflare Workers", "Linux Kernel Tuning"]
+      },
+      "ci_cd": ["GitHub Actions", "ArgoCD", "Google Cloud Build"],
+      "monitoring_and_logging": ["Google Cloud Operations (Stackdriver)", "Prometheus", "Datadog", "OpenTelemetry"],
+      "programming": {
+        "primary": ["TypeScript", "JavaScript", "Go", "Python"],
+        "secondary": ["Rust", "SQL", "C++", "Bash"]
+      },
+      "databases": ["PostgreSQL", "Google Cloud Firestore", "Redis", "Cloud Spanner"],
+      "financial_tools": ["Stripe API", "Financial Ledger Auditing", "Stripe Billing"],
+      "quantitative": ["Mathematical Trust Modeling", "Algorithmic Graph Theory", "Matrix Transformations"],
+      "graph_visualization": ["D3.js Force Simulation", "Canvas 2D", "WebGL", "SVG Topologies"],
+      "investigative": ["Root Cause Analysis (RCA)", "Security Incident Forensics", "Profiling & Memory Leaks"],
+      "structural_engineering": ["Domain-Driven Design (DDD)", "Clean Architecture", "Finite State Machines"],
+      "soft_skills": [
+        "Executive Strategy",
+        "Cross-functional Leadership",
+        "Radical Candor",
+        "Asynchronous Team Management",
+        "Neurodiversity Advocacy"
+      ]
+    },
+    "domains": {
+      "financial": ["ATS Billing", "Affiliate Commission Models", "Audited Financial Flows"],
+      "mission_driven": ["Neurodiversity Inclusion", "Fair Chance Hiring", "Accessible Tooling"],
+      "other": ["Developer Tooling", "Trust Topology Modeling", "Safety-Critical Systems"]
+    },
+    "accommodations": {
+      "summary": "High-performing architect who excels with asynchronous communication, explicit written specifications, and deep uninterrupted focus blocks.",
+      "disclosure": "Neurodivergent (Autism / ADHD) — thrives with structured environments, direct communication, and unambiguous goals.",
+      "conditions": ["Sensory Sensitivity", "High-Focus Cognitive Profile"],
+      "working_style_preferences": [
+        "Preference for written architectural proposals over impromptu verbal meetings",
+        "Clear, written acceptance criteria for all deliverables",
+        "Unscheduled audio/video calls replaced with agenda-driven syncs",
+        "Quiet or remote working environment with sensory accommodations"
+      ],
+      "code_test_exemption_platforms": ["Portfolio / Production Code Review preferred over arbitrary LeetCode brainteasers"],
+      "ada_letter_reference": "Standard professional ADA accommodation protocol available on request"
+    },
+    "community": {
+      "volunteer_leadership": [
+        {
+          "role": "Working Group Lead",
+          "organization": "Open Accessibility ATS Consortium",
+          "dates": "2024 - Present"
+        }
+      ],
+      "opportunities_for_expansion": {
+        "community_involvement": ["Neurodivergent Mentorship", "Open Source Graph Analytics"]
+      }
+    },
+    "job_preferences": {
+      "target_sectors": ["Safety-Critical Tech", "Developer Tools", "AI Systems", "Relationship Analytics"],
+      "role_types": ["Senior Software Architect", "Principal Engineer", "VP of Engineering", "Head of Architecture"],
+      "work_arrangement": ["Remote (Global / US)", "Flexible Hybrid"],
+      "salary_expectations": "$225,000 - $285,000 USD (Base) + Equity",
+      "contract_vs_permanent": "Permanent preferred; Open to select high-impact strategic advisory contracts",
+      "on_call": "Strategic escalation tier only (L3 / Architecture)",
+      "time_zone_alignment": "US Pacific / US Mountain / US Central",
+      "looking_for": "A team prioritizing engineering excellence, intellectual honesty, transparent communication, and psychological safety."
+    },
+    "projects": {
+      "past_projects": [
+        {
+          "id": "p_01",
+          "name": "Ascend ATS Multi-Tenant Governance Suite",
+          "description": "Complete role-based isolation framework with 4-tier privacy controls and instant candidate auto-matching.",
+          "dates": "2025 - 2026",
+          "status": "Deployed"
+        }
+      ]
+    },
+    "locations": {
+      "history": [
+        { "years": "2020 - Present", "location": "San Francisco Bay Area, CA", "notes": "Primary Residence" },
+        { "years": "2010 - 2020", "location": "Berkeley / Oakland, CA", "notes": "Academic & Early Career" }
+      ]
+    },
+    "key_documents": [
+      "Ascend_ATS_Architecture_Whitepaper_v2.pdf",
+      "NASA_JPL_PowerOf10_TypeScript_Implementation_Guide.pdf"
+    ],
+    "references": [
+      {
+        "name": "Sarah Jenkins",
+        "role": "Chief Technology Officer",
+        "company": "Apex Distributed Labs",
+        "quote": "Chris is unmatched in his ability to translate high-stakes architectural challenges into elegant, provably reliable code."
+      }
+    ],
+    "gaps_and_questions": {
+      "pre_2020": {
+        "summary": "Continuous technical progression through core systems engineering and enterprise architecture.",
+        "known": ["UC Berkeley graduate", "Staff Engineer at Vanguard Distributed Platforms"],
+        "questions": []
+      },
+      "2020_2024": {
+        "summary": "Specialized in remote systems engineering, safety architecture, and foundational venture development.",
+        "known": ["Architected core platforms", "Published engineering frameworks"],
+        "questions": []
+      },
+      "post_2024": {
+        "summary": "Founded Ascend ATS and RapportVerse platforms.",
+        "known": ["Active production deployments on Google Cloud and Firebase"],
+        "questions": []
+      }
+    },
+    "personal_insights": {
+      "interesting_facts": [
+        "Has compiled code for over 15 years with zero fatal production regressions under JPL Power-of-10 rules.",
+        "Built custom mechanical tactile keyboards with custom firmware keymaps."
+      ],
+      "values": ["Engineering Rigor", "Intellectual Honesty", "Kindness", "Predictability", "Autonomy"],
+      "workplace_values": ["High Signal-to-Noise Ratio", "Psychological Safety", "Async-First Culture"],
+      "enjoys": ["System Architecture", "Refactoring Sprawling Legacy Code into Modular Gems", "Mentoring Engineers"],
+      "comfortable_with": ["Ambiguous Greenfield Projects", "Hard Real-Time Bounds", "Zero-Warning Linters"],
+      "uncomfortable_with": ["Arbitrary Time Pressure without Technical Foundation", "Performative Agile Bureaucracy"],
+      "dislikes": ["Unbounded Recursion", "Global State Pollution", "Unchecked Any Types in TypeScript"],
+      "skills_enjoyed_using": ["TypeScript", "React", "D3.js", "Firestore", "Go", "Docker"]
+    },
+    "salary_and_benefits_expectations": {
+      "target_roles": ["Senior Software Architect", "Principal Software Engineer", "VP of Engineering"],
+      "salary_range": "$225K - $285K",
+      "desired_benefits": [
+        "Comprehensive Health / Dental / Vision",
+        "401(k) Matching",
+        "Flexible / Remote Workplace",
+        "Dedicated Home Office & Learning Stipend",
+        "Generous or Unlimited PTO"
+      ]
+    },
+    "demographics": {
+      "citizenship": "United States",
+      "work_authorization": "Authorized to work in the US for any employer without sponsorship",
+      "race_ethnicity": "Prefer not to disclose / Provided on official compliance forms",
+      "gender": "Male",
+      "sexual_orientation": "Prefer not to disclose",
+      "lgbtqia+": "Ally",
+      "disability": "Neurodivergent (Autistic / ADHD) — protected under Americans with Disabilities Act (ADA)",
+      "veteran_status": "Not a veteran",
+      "first_generation_college_student": "No",
+      "eligible_for_financial_aid": "N/A"
+    }
+  }
+}

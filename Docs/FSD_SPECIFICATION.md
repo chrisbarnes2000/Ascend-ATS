@@ -28,13 +28,19 @@ The platform defines four explicit system actor roles with strict privilege boun
 ## 3. Functional Requirements & Input/Output Specification
 
 ### 3.1 Data Ingestion & Import Engine Specifications
-- **Inputs**: Multi-format uploads (`.csv` files, `.vcf` vCard 4.0 archives, Google People API OAuth tokens, BlueSky handles).
+- **Inputs**: Multi-format profile ingestion:
+  - **Resume Documents**: PDF, DOCX, TXT via client-side parsing.
+  - **Simplified Resume JSON (`/public/templates/resume-simplified-template.json`)**: Schema v2026.10.04 capturing `contact`, `summary`, `work_experience`, `education`, `certifications`, `skills`, `domains`, `key_metrics`, and `optional` sections.
+  - **Advanced Portfolio Persona JSON (`/public/templates/resume-advanced-persona-template.json`)**: Deep career topology capturing `persona` identity, brand, ventures, attribution, accommodations, and personal insights.
+  - **Recruiter Profile JSON (`/public/templates/recruiter-profile-template.json`)**: Sourcing specialties, verified company alignment, active hiring focus areas, and candidate communication SLAs.
 - **Validation Rules**:
   - Maximum row limit per import batch: `MAX_IMPORT_ROWS = 2500` (JPL Rule 2).
   - Sanitization: All string inputs sanitized against XSS attacks and stripped of binary escape codes.
+  - Multi-Format Auto-Detection: Automatically detects schema flavor (`simplified`, `advanced_persona`, `recruiter`, `legacy`) without requiring manual format selection.
 - **Outputs**:
-  - Validated contact records committed to per-user Firestore collections.
-  - Interactive Merge Matrix detailing side-by-side profile comparisons, duplicate deduplication counts, and column retention selections.
+  - Validated candidate profile records committed to per-user Firestore subcollections (`/users/{uid}/profiles/main`).
+  - Validated recruiter profile records committed to `/users/{uid}/profiles/recruiter` and `/users/{uid}/profiles/company`.
+  - Downloadable templates and JSON Schemas available via 1-click in the UI and `/public/templates/`.
 
 ### 3.2 David Maister Trust Engine Specifications
 - **Formula**: $T = \frac{C + R + I}{S}$ where $C, R, I \in [0, 100]$ and $S \in [1, 100]$.

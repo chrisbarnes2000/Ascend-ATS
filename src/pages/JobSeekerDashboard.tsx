@@ -7,7 +7,7 @@ import { Application, JobSeekerProfile, ApplicationStatus } from '../types';
 import { 
   Send, Clock, CheckCircle2, TrendingUp, Sparkles, 
   ChevronRight, ExternalLink, Briefcase, MapPin, DollarSign,
-  Plus, Loader2, Check, HelpCircle, MessageSquare, X
+  Plus, Loader2, Check, HelpCircle, MessageSquare, X, Lock
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { JobTracker } from '../components/tracker/JobTracker';
@@ -770,14 +770,28 @@ export const JobSeekerDashboard = () => {
                             </div>
                             <div>
                               <h3 className="text-xl font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight">{job.title}</h3>
-                              <p className="font-medium text-slate-600 dark:text-slate-400">
-                                <a 
-                                  href={`#company/${job.companyId || 'unknown'}?name=${encodeURIComponent(job.companyName)}`}
-                                  className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-blue-500 underline-offset-4 cursor-pointer"
-                                >
-                                  {job.companyName}
-                                </a>
-                              </p>
+                              <div className="flex flex-col">
+                                <div className="font-medium text-slate-600 dark:text-slate-400 flex flex-wrap items-center gap-1.5 leading-snug">
+                                  {job.isClientConfidential ? (
+                                    <span className="text-slate-400 dark:text-slate-500 italic flex items-center gap-1 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-800 text-[13px]">
+                                      <Lock className="w-3 h-3" /> Confidential Client
+                                    </span>
+                                  ) : (
+                                    <a 
+                                      href={`#company/${job.companyId || 'unknown'}?name=${encodeURIComponent(job.companyName)}`}
+                                      className="text-slate-900 dark:text-slate-100 font-bold hover:text-blue-600 dark:hover:text-blue-400 transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-blue-500 underline-offset-4 cursor-pointer text-[15px]"
+                                    >
+                                      {job.companyName}
+                                    </a>
+                                  )}
+                                  
+                                  {job.posterFirmName && (
+                                    <span className="text-[13px] text-slate-500 dark:text-slate-500 font-medium">
+                                      posted/managed by <span className="font-bold text-indigo-600 dark:text-indigo-400">{job.posterFirmName}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
                           <div className="text-right shrink-0">

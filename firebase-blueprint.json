@@ -105,6 +105,21 @@
         "status": { "type": "string", "enum": ["pending", "reviewed", "rejected"] },
         "createdAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "CompanyClaimRequest": {
+      "title": "Company Claim Request",
+      "description": "Request from a recruiter to be associated with a company",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "companyId": { "type": "string" },
+        "companyName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "companyId", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -135,6 +150,10 @@
     "partner_requests/{requestId}": {
       "schema": "PartnerRequest",
       "description": "Requests from external recruiters to join the platform"
+    },
+    "company_claim_requests/{requestId}": {
+      "schema": "CompanyClaimRequest",
+      "description": "Recruiter requests to claim/link to a company"
     }
   }
 }

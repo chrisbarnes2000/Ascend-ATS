@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
-import { JobSeekerProfile } from '../types';
-import { Shield, Slash, Briefcase, MapPin, GraduationCap, Award, Heart, Smile, Clock, Sparkles, Users, Lock, EyeOff, Globe, CheckCircle2, ExternalLink } from 'lucide-react';
+import { JobSeekerProfile, RecruiterProfile, Job } from '../types';
+import { 
+  Shield, Slash, Briefcase, MapPin, GraduationCap, Award, Heart, Smile, Clock, 
+  Sparkles, Users, Lock, EyeOff, Globe, CheckCircle2, ExternalLink, Mail, Phone,
+  ChevronRight, Building, Award as BadgeCheck
+} from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { RichText } from '../components/profile/RichText';
 import { SkillVisualizer } from '../components/profile/SkillVisualizer';
@@ -8,6 +12,9 @@ import { SkillVisualizer } from '../components/profile/SkillVisualizer';
 export function PublicProfile() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<JobSeekerProfile | null>(null);
+  const [profileType, setProfileType] = useState<'jobSeeker' | 'recruiter'>('jobSeeker');
+  const [recruiterProfile, setRecruiterProfile] = useState<RecruiterProfile | null>(null);
+  const [recruiterJobs, setRecruiterJobs] = useState<Job[]>([]);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -26,6 +33,67 @@ export function PublicProfile() {
         const { doc, getDoc } = await import('firebase/firestore');
         const { db } = await import('../firebase/config');
         
+        // 1. Fetch user doc to check role
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        const userData = userDoc.exists() ? userDoc.data() : null;
+        const isRecruiter = userData?.accountType === 'recruiter' || userData?.staffingRole === 'recruiter';
+
+        if (isRecruiter) {
+          setProfileType('recruiter');
+          const recSnap = await getDoc(doc(db, `users/${uid}/profiles/recruiter`));
+          const compSnap = await getDoc(doc(db, `users/${uid}/profiles/company`));
+          const recData = recSnap.exists() ? recSnap.data() : {};
+          const compData = compSnap.exists() ? compSnap.data() : {};
+
+          const effectiveCompanyId = recData.companyId || compData.claimedCompanyId || userData?.companyId || userData?.claimedCompanyId || '';
+          const effectiveCompanyName = recData.companyName || compData.companyName || userData?.companyName || userData?.staffingFirmName || 'Verified Organization';
+
+          const assembledRecruiter: RecruiterProfile = {
+            personalInfo: {
+              firstName: recData.personalInfo?.firstName || userData?.displayName || userData?.email?.split('@')[0] || 'Recruiter',
+              lastName: recData.personalInfo?.lastName || '',
+              title: recData.personalInfo?.title || 'Talent Acquisition Partner',
+              phone: recData.personalInfo?.phone || '',
+              email: recData.personalInfo?.email || userData?.email || '',
+              linkedinUrl: recData.personalInfo?.linkedinUrl || compData.linkedin || '',
+              location: recData.personalInfo?.location || compData.location || 'Remote'
+            },
+            bio: recData.bio || compData.description || 'Specialized talent partner dedicated to matching top candidates with high-impact teams.',
+            specialties: recData.specialties || ['Technical Sourcing', 'Leadership', 'Career Strategy'],
+            companyId: effectiveCompanyId,
+            companyName: effectiveCompanyName,
+            companyLogoUrl: recData.companyLogoUrl || '',
+            website: recData.website || compData.website || '',
+            isPublic: recData.isPublic !== false,
+            yearsExperience: recData.yearsExperience || 3
+          };
+
+          const isOwner = user && user.uid === uid;
+          if (!assembledRecruiter.isPublic && !isOwner) {
+            setError(true);
+            setLoading(false);
+            return;
+          }
+
+          setRecruiterProfile(assembledRecruiter);
+
+          // Fetch active open jobs for this recruiter's company
+          if (effectiveCompanyId) {
+            const { collection, query, where, getDocs } = await import('firebase/firestore');
+            const jobsQ = query(
+              collection(db, 'jobs'),
+              where('companyId', '==', effectiveCompanyId),
+              where('status', '==', 'active')
+            );
+            const jobsSnap = await getDocs(jobsQ);
+            setRecruiterJobs(jobsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Job)));
+          }
+          setLoading(false);
+          return;
+        }
+
+        // 2. Fallback to JobSeeker profile
+        setProfileType('jobSeeker');
         const profileRef = doc(db, `users/${uid}/profiles/main`);
         const snapshot = await getDoc(profileRef);
         
@@ -112,6 +180,178 @@ export function PublicProfile() {
 
   if (loading) return <div className="p-24 text-center dark:text-slate-400 font-medium">Loading Profile...</div>;
   
+  if (profileType === 'recruiter' && recruiterProfile) {
+    return (
+      <div className="min-h-screen pt-24 pb-16 px-4 w-full md:w-[75vw] max-w-none mx-auto space-y-8">
+        {/* Recruiter Header Card */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 p-8 md:p-12 relative overflow-hidden">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-8 border-b border-slate-150 dark:border-slate-800">
+            <div className="flex items-center gap-5">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-3xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                {recruiterProfile.personalInfo.firstName.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <span className="bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-200 dark:border-indigo-800 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" /> Verified Recruiter Profile
+                  </span>
+                  {recruiterProfile.yearsExperience && (
+                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                      {recruiterProfile.yearsExperience}+ Years Exp
+                    </span>
+                  )}
+                </div>
+                <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">
+                  {recruiterProfile.personalInfo.firstName} {recruiterProfile.personalInfo.lastName}
+                </h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                  {recruiterProfile.personalInfo.title}
+                </p>
+                {recruiterProfile.companyName && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Building className="w-4 h-4 text-indigo-500" />
+                    <a
+                      href={recruiterProfile.companyId ? `#company/${recruiterProfile.companyId}` : '#companies'}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                    >
+                      {recruiterProfile.companyName} <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {recruiterProfile.personalInfo.email && (
+                <a
+                  href={`mailto:${recruiterProfile.personalInfo.email}?subject=${encodeURIComponent(`Inquiry from Ascend ATS for ${recruiterProfile.personalInfo.firstName}`)}`}
+                  className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-600/20 transition-all"
+                >
+                  <Mail className="w-4 h-4" /> Message Recruiter
+                </a>
+              )}
+              {recruiterProfile.personalInfo.linkedinUrl && (
+                <a
+                  href={recruiterProfile.personalInfo.linkedinUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold flex items-center gap-2 transition-all"
+                >
+                  <Globe className="w-4 h-4 text-blue-500" /> LinkedIn
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8">
+            <div className="md:col-span-2 space-y-6">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">About & Talent Philosophy</h3>
+                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                  {recruiterProfile.bio}
+                </p>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Sourcing Verticals & Core Specialties</h3>
+                <div className="flex flex-wrap gap-2">
+                  {recruiterProfile.specialties.map(spec => (
+                    <span
+                      key={spec}
+                      className="px-3.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3 h-3 text-indigo-500" /> {spec}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-950/40 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400">Recruiter Details</h4>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-slate-400 block">Organization</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{recruiterProfile.companyName || 'Ascend Partner'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Location</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{recruiterProfile.personalInfo.location || 'Remote'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Profile Status</span>
+                  <span className="font-bold text-emerald-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Publicly Discoverable
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Active Open Requisitions Section */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 p-8 md:p-12 space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-indigo-500" /> Active Open Job Requisitions ({recruiterJobs.length})
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Roles actively being recruited for {recruiterProfile.companyName}.
+              </p>
+            </div>
+          </div>
+
+          {recruiterJobs.length === 0 ? (
+            <div className="py-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+              <Briefcase className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+              <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">No active public openings right now</h4>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+                Check back soon or message the recruiter directly above to share your background for upcoming roles.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recruiterJobs.map(job => (
+                <div
+                  key={job.id}
+                  className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 hover:border-indigo-300 transition-all flex flex-col justify-between gap-4 group"
+                >
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-emerald-500 text-white">
+                        {job.status || 'Active'}
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-400">{job.workplaceType || 'Remote'}</span>
+                    </div>
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors line-clamp-1">
+                      {job.title}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" /> {job.location || 'Remote'}
+                    </p>
+                    {job.parsedCriteria?.salaryRange && (
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-2">
+                        ${job.parsedCriteria.salaryRange.min.toLocaleString()} – ${job.parsedCriteria.salaryRange.max.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+
+                  <a
+                    href={`#job/${job.id}`}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-xs transition-all"
+                  >
+                    View Role & Direct Apply <ChevronRight className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (error || !profile) {
     return (
       <div className="min-h-screen pt-24 pb-12 px-4 w-full md:w-[75vw] max-w-none mx-auto flex flex-col gap-6">
@@ -618,7 +858,10 @@ export function PublicProfile() {
 
         <div className="flex flex-col items-start gap-3 border-b border-slate-100 dark:border-slate-800 pb-8 mb-8 w-full">
            <div className="flex flex-wrap items-center gap-3 w-full">
-             <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100">
+             <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-2 border border-blue-100 dark:border-blue-900">
+                <Briefcase className="w-3.5 h-3.5" /> Job Seeker Profile
+             </div>
+             <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-100 w-full">
                {displayedName}
              </h1>
              {profile.personalInfo?.pronouns && (

@@ -8,8 +8,9 @@ import { motion } from 'motion/react';
 import { 
   Briefcase, MapPin, DollarSign, Target, CheckCircle2, ArrowLeft, Loader2, Check, Sparkles, 
   AlertTriangle, ShieldCheck, HelpCircle, UserCheck, XCircle, Clock, Calendar, Plus, 
-  MessageSquare, Send, X, Layers, Award, ShieldAlert, Info
+  MessageSquare, Send, X, Layers, Award, ShieldAlert, Info, FileText, AlignLeft, Copy, Lock
 } from 'lucide-react';
+import { JobContentPreview, JobPreviewMode, stripMarkdownFormatting } from '../components/JobContentPreview';
 
 function getTimeAgo(dateInput: any): string {
   if (!dateInput) return 'Recently';
@@ -93,6 +94,24 @@ export const JobDescription = () => {
       hiringVerdict: string;
     };
   } | null>(null);
+
+  // Job Description & Requirements Preview Mode ('rich' | 'markdown' | 'raw')
+  const [contentPreviewMode, setContentPreviewMode] = useState<JobPreviewMode>('rich');
+  const [copiedAllRaw, setCopiedAllRaw] = useState(false);
+
+  const handleCopyCompleteRaw = async () => {
+    if (!job) return;
+    try {
+      const cleanDesc = stripMarkdownFormatting(job.description || '');
+      const cleanReq = stripMarkdownFormatting(job.requirements || '');
+      const fullCleanText = `TITLE: ${job.title}\nCOMPANY: ${job.companyName}\nLOCATION: ${job.location || 'Remote'}\nSALARY: $${job.salaryMin} - $${job.salaryMax}\n\nABOUT THE ROLE:\n${cleanDesc}\n\nREQUIREMENTS:\n${cleanReq}`;
+      await navigator.clipboard.writeText(fullCleanText);
+      setCopiedAllRaw(true);
+      setTimeout(() => setCopiedAllRaw(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy all raw text:', err);
+    }
+  };
   
   const jobId = window.location.hash.replace('#job/', '');
 
@@ -395,14 +414,28 @@ export const JobDescription = () => {
              </div>
              <div>
                <h1 className="text-3xl font-bold mb-2 text-slate-900 dark:text-slate-100">{job.title}</h1>
-               <p className="text-xl text-slate-600 dark:text-slate-400 font-medium">
-                 <a 
-                   href={`#company/${job.companyId || 'unknown'}?name=${encodeURIComponent(job.companyName)}`}
-                   className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-blue-500 underline-offset-4 cursor-pointer"
-                 >
-                   {job.companyName}
-                 </a>
-               </p>
+               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                 <p className="text-xl text-slate-600 dark:text-slate-400 font-medium flex flex-wrap items-center gap-2">
+                   {job.isClientConfidential ? (
+                     <span className="text-slate-400 dark:text-slate-500 italic flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/50 px-3 py-1 rounded-xl border border-slate-100 dark:border-slate-800">
+                       <Lock className="w-4 h-4" /> Confidential Client
+                     </span>
+                   ) : (
+                     <a 
+                       href={`#company/${job.companyId || 'unknown'}?name=${encodeURIComponent(job.companyName)}`}
+                       className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors underline decoration-slate-300 dark:decoration-slate-700 hover:decoration-blue-500 underline-offset-4 cursor-pointer"
+                     >
+                       {job.companyName}
+                     </a>
+                   )}
+
+                   {job.posterFirmName && (
+                     <span className="text-base text-slate-500 dark:text-slate-500 font-medium ml-1">
+                       posted/managed by <span className="font-bold text-indigo-600 dark:text-indigo-400">{job.posterFirmName}</span>
+                     </span>
+                   )}
+                 </p>
+               </div>
              </div>
           </div>
 
@@ -529,21 +562,135 @@ export const JobDescription = () => {
 
           <button
             onClick={() => setShowVersionHistoryModal(true)}
-            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 px-3 py-1.5 rounded-xl border border-indigo-200/50 dark:border-indigo-800/50 flex items-center gap-1.5 transition-all cursor-pointer"
+            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 px-3 py-1.5 rounded-xl border border-indigo-200/50 dark:border-indigo-800/50 flex items-center gap-1.5 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500"
           >
             <Clock className="w-3.5 h-3.5" />
             <span>View Version History & Audit Trail ({(job.revisions || []).length})</span>
           </button>
         </div>
 
+        {/* Section: About the Role (Selector 1 target) */}
         <div className="mt-8 mb-8">
-          <h2 className="text-xl font-bold mb-4 text-slate-900 dark:text-slate-100">About the Role</h2>
-          <p className="text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">{job.description}</p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-indigo-500" aria-hidden="true" />
+              <span>About the Role</span>
+            </h2>
+
+            {/* Display Mode Selector Pill Controls */}
+            <div 
+              role="tablist" 
+              aria-label="Job description preview formatting options"
+              className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-xs self-start sm:self-auto"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={contentPreviewMode === 'rich'}
+                onClick={() => setContentPreviewMode('rich')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  contentPreviewMode === 'rich'
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500" aria-hidden="true" />
+                <span>Rich Text</span>
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={contentPreviewMode === 'markdown'}
+                onClick={() => setContentPreviewMode('markdown')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  contentPreviewMode === 'markdown'
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                <span>Markdown</span>
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={contentPreviewMode === 'raw'}
+                onClick={() => setContentPreviewMode('raw')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  contentPreviewMode === 'raw'
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <AlignLeft className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                <span>Raw Text</span>
+              </button>
+
+              {contentPreviewMode === 'raw' && (
+                <button
+                  type="button"
+                  onClick={handleCopyCompleteRaw}
+                  title="Copy full unformatted job text to clipboard"
+                  className="ml-1 flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 font-semibold cursor-pointer border border-indigo-200/60 dark:border-indigo-800"
+                >
+                  {copiedAllRaw ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-500" />
+                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span className="text-[11px]">Copy All</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <JobContentPreview 
+            content={job.description} 
+            mode={contentPreviewMode}
+            asParagraph={true}
+            className={`transition-all duration-200 ${
+              contentPreviewMode === 'raw'
+                ? 'p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800'
+                : contentPreviewMode === 'rich'
+                ? 'p-5 rounded-2xl bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800/80 shadow-xs'
+                : 'p-4 rounded-2xl bg-slate-50/40 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800/50'
+            }`}
+          />
         </div>
 
+        {/* Section: Requirements (Selector 2 target) */}
         <div>
-          <h2 className="text-xl font-bold mb-4 text-slate-900 dark:text-slate-100">Requirements</h2>
-          <p className="text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">{job.requirements}</p>
+          <div className="flex items-center justify-between gap-3 mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500" aria-hidden="true" />
+              <span>Requirements</span>
+            </h2>
+            {contentPreviewMode === 'raw' && (
+              <span className="text-xs text-slate-400 font-mono italic">
+                Unformatted Plain Text View
+              </span>
+            )}
+          </div>
+
+          <JobContentPreview 
+            content={job.requirements} 
+            mode={contentPreviewMode}
+            asParagraph={true}
+            className={`transition-all duration-200 ${
+              contentPreviewMode === 'raw'
+                ? 'p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800'
+                : contentPreviewMode === 'rich'
+                ? 'p-5 rounded-2xl bg-white/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800/80 shadow-xs'
+                : 'p-4 rounded-2xl bg-slate-50/40 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800/50'
+            }`}
+          />
         </div>
       </motion.div>
 

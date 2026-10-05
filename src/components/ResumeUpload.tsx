@@ -26,14 +26,25 @@ export const ResumeUpload = ({ onParsed }: ResumeParserProps) => {
     try {
       const reader = new FileReader();
       reader.onload = async (event) => {
-        const text = event.target?.result as string;
+        const fileContent = event.target?.result as string;
+        const isPdf = file.type === 'application/pdf';
+        
+        // For text files, we send the string. For PDFs, we send base64-encoded binary.
+        let payloadContent = '';
+        if (isPdf) {
+          // FileReader.readAsDataURL results in 'data:application/pdf;base64,JVBERi...'
+          payloadContent = fileContent.split(',')[1];
+        } else {
+          payloadContent = fileContent;
+        }
         
         const response = await fetch('/api/parse-resume', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fileName: file.name,
-            fileContent: text.substring(0, 6000),
+            fileContent: payloadContent,
+            fileType: file.type,
             useAI: promptVersion !== 'v1',
             promptVersion
           })
@@ -44,7 +55,12 @@ export const ResumeUpload = ({ onParsed }: ResumeParserProps) => {
         const fileUrl = URL.createObjectURL(file);
         onParsed({ ...data, resumePreviewUrl: fileUrl, promptVersion });
       };
-      reader.readAsText(file);
+
+      if (file.type === 'application/pdf') {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
     } catch (err) {
       setError('Parsing failed. You can still enter your details manually.');
       console.error(err);

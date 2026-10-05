@@ -180,9 +180,17 @@ export const CompanyDirectory = () => {
                   <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center border border-blue-100/30">
                     <Building className="w-6 h-6" />
                   </div>
-                  <span className="bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold border border-blue-100 dark:border-blue-900/40">
-                    {companyJobs.length} active role{companyJobs.length !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5">
+                    {(company as any).isPlaceholder ? (
+                      <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 px-2.5 py-0.5 rounded-full text-[10px] font-black border border-amber-200/50 dark:border-amber-800/50 uppercase tracking-wider">
+                        Pending Activation
+                      </span>
+                    ) : (
+                      <span className="bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold border border-blue-100 dark:border-blue-900/40">
+                        {companyJobs.length} active role{companyJobs.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <h3 className="text-xl font-bold mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">

@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AscendSimplifiedResume",
+  "description": "Simplified resume-to-JSON schema for Ascend ATS",
+  "type": "object",
+  "properties": {
+    "meta": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" },
+        "purpose": { "type": "string" },
+        "source_file": { "type": "string" },
+        "converted_date": { "type": "string" }
+      }
+    },
+    "contact": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "preferred_title": { "type": "string" },
+        "pronouns": { "type": "string" },
+        "location": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "linkedin": { "type": "string" },
+        "github": { "type": "string" },
+        "portfolio": { "type": "string" },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "language": { "type": "string" },
+              "proficiency": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "headline": { "type": "string" },
+        "narrative": { "type": "string" },
+        "years_experience": { "type": ["number", "null"] },
+        "target_role": { "type": "string" }
+      }
+    },
+    "work_experience": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "company"],
+        "properties": {
+          "id": { "type": "string" },
+          "role": { "type": "string" },
+          "company": { "type": "string" },
+          "location": { "type": "string" },
+          "dates": { "type": "string" },
+          "current": { "type": "boolean" },
+          "description": { "type": "string" },
+          "highlights": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "education": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "degree": { "type": "string" },
+          "institution": { "type": "string" },
+          "location": { "type": "string" },
+          "dates": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "certifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "issuer": { "type": "string" },
+          "date": { "type": "string" }
+        }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "properties": {
+        "top_skills": { "type": "array", "items": { "type": "string" } },
+        "programming": {
+          "type": "object",
+          "properties": {
+            "primary": { "type": "array", "items": { "type": "string" } },
+            "secondary": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "data_and_analytics": { "type": "array", "items": { "type": "string" } },
+        "cloud_and_platforms": {
+          "type": "object",
+          "properties": {
+            "primary": { "type": "array", "items": { "type": "string" } },
+            "secondary": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "automation_and_scripting": { "type": "array", "items": { "type": "string" } },
+        "enterprise_and_governance": { "type": "array", "items": { "type": "string" } },
+        "development_practices": { "type": "array", "items": { "type": "string" } },
+        "other": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "domains": { "type": "array", "items": { "type": "string" } },
+    "key_metrics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "value": { "type": "string" },
+          "label": { "type": "string" }
+        }
+      }
+    },
+    "optional": { "type": "object" },
+    "conversion_notes": { "type": "object" }
+  },
+  "required": ["contact"]
+}

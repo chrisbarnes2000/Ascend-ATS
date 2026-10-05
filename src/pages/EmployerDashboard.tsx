@@ -27,14 +27,28 @@ import {
   Link,
   DollarSign
 } from 'lucide-react';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, getDocs, updateDoc, orderBy, serverTimestamp, arrayUnion, where } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  onSnapshot, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  getDocs, 
+  updateDoc, 
+  orderBy, 
+  serverTimestamp, 
+  arrayUnion, 
+  where,
+  addDoc
+} from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../hooks/useAuth';
 import { EmployerSourcing } from './EmployerSourcing';
 import { CompanyManagement } from './CompanyManagement';
 import { JobRequisitionEditor } from '../components/JobRequisitionEditor';
-import { GovJobsBridge } from '../components/GovJobsBridge';
-import { Edit3, Globe } from 'lucide-react';
+import { CompanyClaimRequest } from '../types';
+import { Edit3, Globe, ShieldAlert } from 'lucide-react';
 
 interface ApplicationRecord {
   id: string;
@@ -83,6 +97,10 @@ export const EmployerDashboard = () => {
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
+  // Claim Request Management
+  const [incomingClaimRequests, setIncomingClaimRequests] = useState<CompanyClaimRequest[]>([]);
+  const [myClaimRequest, setMyClaimRequest] = useState<CompanyClaimRequest | null>(null);
+
   // Load Recruiter Company Profile and System Companies for Claiming
   useEffect(() => {
     if (!user) return;
@@ -105,25 +123,21 @@ export const EmployerDashboard = () => {
           });
         }
 
-        // 2. Aggregate registered companies for claiming selector
-        const jobsSnap = await getDocs(collection(db, 'jobs'));
-        const compsMap = new Map<string, string>();
-        jobsSnap.forEach(d => {
+        // 2. Aggregate registered companies for claiming selector from public companies collection
+        const compsSnap = await getDocs(collection(db, 'companies'));
+        const compsMap = new Map<string, { id: string; ownerId: string }>();
+        compsSnap.forEach(d => {
           const data = d.data();
-          if (data.companyName) {
-            const compId = data.companyId || data.companyName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            compsMap.set(data.companyName, compId);
+          if (data.name) {
+            compsMap.set(data.name, { id: d.id, ownerId: data.ownerUserId || d.id });
           }
         });
 
-        // Default seed companies
-        if (!compsMap.has('Acme Corp')) compsMap.set('Acme Corp', 'acme-corp');
-        if (!compsMap.has('CloudScale Infrastructure')) compsMap.set('CloudScale Infrastructure', 'cloudscale');
-        if (!compsMap.has('General Hospital')) compsMap.set('General Hospital', 'general-hospital');
-        if (!compsMap.has('NextGen Apps')) compsMap.set('NextGen Apps', 'nextgen-apps');
-        if (!compsMap.has('BioHealth Labs')) compsMap.set('BioHealth Labs', 'biohealth');
-
-        setAvailableCompaniesList(Array.from(compsMap.entries()).map(([name, id]) => ({ name, id })));
+        // Default seed companies if not present
+        if (!compsMap.has('Acme Corp')) compsMap.set('Acme Corp', { id: 'acme-corp', ownerId: '393uzPXnOdPW3CE3rdhmDMEldzm1' });
+        if (!compsMap.has('CloudScale Infrastructure')) compsMap.set('CloudScale Infrastructure', { id: 'cloudscale', ownerId: 'system' });
+        
+        setAvailableCompaniesList(Array.from(compsMap.entries()).map(([name, data]) => ({ name, id: data.id, ownerId: data.ownerId })));
       } catch (err) {
         console.error("Error loading recruiter company profile:", err);
       }
@@ -132,35 +146,112 @@ export const EmployerDashboard = () => {
     fetchCompanyData();
   }, [user, appUser]);
 
+  // Listen for Claim Requests
+  useEffect(() => {
+    if (!user) return;
+    const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin';
+    const isCompAdmin = appUser?.staffingRole === 'admin' || appUser?.staffingRole === 'owner' || appUser?.accountType === 'company' || appUser?.accountType === 'staffingFirm';
+    const effectiveCompanyId = recruiterCompany.claimedCompanyId || (appUser?.accountType === 'company' ? user?.uid : null);
+
+    // Own request
+    const qOwn = query(collection(db, 'company_claim_requests'), where('userId', '==', user.uid), where('status', '==', 'pending'));
+    const unsubOwn = onSnapshot(qOwn, (snap) => {
+      if (!snap.empty) {
+        setMyClaimRequest({ id: snap.docs[0].id, ...snap.docs[0].data() } as CompanyClaimRequest);
+      } else {
+        setMyClaimRequest(null);
+      }
+    });
+
+    // Incoming requests
+    let unsubIn = () => {};
+    if (isAdmin) {
+      const qIn = query(collection(db, 'company_claim_requests'), where('status', '==', 'pending'));
+      unsubIn = onSnapshot(qIn, (snap) => {
+        setIncomingClaimRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as CompanyClaimRequest)));
+      });
+    } else if (isCompAdmin && effectiveCompanyId) {
+      // Query by companyId if they are an admin/owner of that firm
+      const qIn = query(collection(db, 'company_claim_requests'), 
+        where('companyId', '==', effectiveCompanyId),
+        where('status', '==', 'pending')
+      );
+      unsubIn = onSnapshot(qIn, (snap) => {
+        setIncomingClaimRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as CompanyClaimRequest)));
+      });
+    }
+
+    return () => {
+      unsubOwn();
+      unsubIn();
+    };
+  }, [user, appUser, recruiterCompany.claimedCompanyId, recruiterCompany.companyId]);
+
   // Handle Recruiter Claiming / Associating a Company
-  const handleClaimCompany = async (cName: string, cId?: string) => {
+  const handleClaimCompany = async (cName: string, cId?: string, cOwnerId?: string) => {
     if (!user || !cName.trim()) return;
     setIsClaiming(true);
     try {
       const compId = cId || cName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-      const profileRef = doc(db, `users/${user.uid}/profiles/company`);
-      await setDoc(profileRef, {
+      
+      // Request approval instead of immediate association
+      await addDoc(collection(db, 'company_claim_requests'), {
+        userId: user.uid,
+        userEmail: user.email,
+        companyId: compId,
         companyName: cName.trim(),
-        companyId: user.uid,
-        claimedCompanyId: compId,
+        companyOwnerId: cOwnerId || 'system',
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      setSuccessToast(`Request to join "${cName.trim()}" sent! Waiting for employer approval.`);
+      setTimeout(() => setSuccessToast(null), 3000);
+      setShowClaimCompanyModal(false);
+    } catch (err) {
+      console.error("Failed to claim company:", err);
+      alert("Failed to submit request. Please try again.");
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
+  const handleApproveClaim = async (req: CompanyClaimRequest) => {
+    try {
+      // 1. Update the request
+      await updateDoc(doc(db, 'company_claim_requests', req.id), {
+        status: 'approved',
+        updatedAt: serverTimestamp()
+      });
+
+      // 2. Link the user
+      const profileRef = doc(db, `users/${req.userId}/profiles/company`);
+      await setDoc(profileRef, {
+        companyName: req.companyName.trim(),
+        companyId: req.userId,
+        claimedCompanyId: req.companyId,
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      setRecruiterCompany({
-        companyName: cName.trim(),
-        companyId: user.uid,
-        claimedCompanyId: compId
-      });
-
-      setSuccessToast(`Successfully linked account to "${cName.trim()}"!`);
+      setSuccessToast(`Approved ${req.userEmail} for ${req.companyName}`);
       setTimeout(() => setSuccessToast(null), 3000);
-      setShowClaimCompanyModal(false);
-      setCompanyFilterMode('my-company');
     } catch (err) {
-      console.error("Failed to claim company:", err);
-      alert("Failed to associate company profile. Please try again.");
-    } finally {
-      setIsClaiming(false);
+      console.error("Approval error:", err);
+      alert("Failed to approve request.");
+    }
+  };
+
+  const handleRejectClaim = async (reqId: string) => {
+    try {
+      await updateDoc(doc(db, 'company_claim_requests', reqId), {
+        status: 'rejected',
+        updatedAt: serverTimestamp()
+      });
+      setSuccessToast("Join request rejected.");
+      setTimeout(() => setSuccessToast(null), 3000);
+    } catch (err) {
+      console.error("Rejection error:", err);
     }
   };
 
@@ -319,27 +410,21 @@ export const EmployerDashboard = () => {
   };
 
   // Restrict application list to current company or claimed company profile unless Admin / All Pool selected
-  const isAdmin = appUser?.role === 'admin';
+  const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin';
+  const effectiveCompanyId = recruiterCompany.claimedCompanyId || recruiterCompany.companyId || (appUser?.accountType === 'company' ? user?.uid : '');
+  const effectiveCompanyName = (recruiterCompany.companyName || '').toLowerCase().trim();
+
   const companyApplications = applications.filter(app => {
-    if (isAdmin || companyFilterMode === 'all') return true;
+    if (isAdmin && companyFilterMode === 'all') return true;
 
-    const recruiterCompName = (recruiterCompany.companyName || '').toLowerCase().trim();
-    const appCompName = (app.companyName || '').toLowerCase().trim();
     const appCompId = app.companyId;
+    const appCompName = (app.companyName || '').toLowerCase().trim();
 
-    // Direct User ID match (jobs posted directly by this recruiter account)
-    if (appCompId === user?.uid) return true;
+    // Match strictly by active companyId
+    if (effectiveCompanyId && appCompId === effectiveCompanyId) return true;
 
-    // Claimed Company ID match
-    if (recruiterCompany.claimedCompanyId && appCompId === recruiterCompany.claimedCompanyId) return true;
-
-    // Company Name match
-    if (recruiterCompName && appCompName && appCompName === recruiterCompName) return true;
-
-    // Fallback if recruiter has not specified a company name yet
-    if (!recruiterCompName && (appCompId === 'company' || appCompId === 'general-hospital' || appCompId === 'cloudscale' || appCompId === 'acme-corp')) {
-      return true;
-    }
+    // Match strictly by company name (for records without explicit companyId)
+    if (effectiveCompanyName && appCompName && appCompName === effectiveCompanyName) return true;
 
     return false;
   });
@@ -435,34 +520,33 @@ export const EmployerDashboard = () => {
           </div>
           <p className="text-slate-500 dark:text-slate-400 mt-1">Review live candidate submissions, manage pipeline stages, and advance applications.</p>
         </div>
-        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-x-auto max-w-full">
+        <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
           <button 
             onClick={() => setActiveTab('pipeline')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'pipeline' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-1.5 ${activeTab === 'pipeline' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <Users className="w-4 h-4" /> ATS Pipeline ({countTotal})
           </button>
           <button 
             onClick={() => setActiveTab('sourcing')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'sourcing' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${activeTab === 'sourcing' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             Talent Search
           </button>
           <button 
             onClick={() => setActiveTab('requisitions')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'requisitions' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-1.5 ${
+              activeTab === 'requisitions' || (activeTab as string) === 'govbridge'
+                ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500/20' 
+                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
           >
-            <Edit3 className="w-4 h-4 text-indigo-500" /> Requisitions & Audits
-          </button>
-          <button 
-            onClick={() => setActiveTab('govbridge')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'govbridge' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
-          >
-            <Globe className="w-4 h-4 text-emerald-500" /> GovJobs Bridge
+            <Edit3 className="w-4 h-4 text-indigo-500" />
+            <span>Requisitions & Audits</span>
           </button>
           <button 
             onClick={() => setActiveTab('company')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap flex items-center gap-1.5 ${activeTab === 'company' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-1.5 ${activeTab === 'company' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'}`}
           >
             <Building className="w-4 h-4" /> Company & Jobs
           </button>
@@ -488,41 +572,84 @@ export const EmployerDashboard = () => {
                       Verified Link
                     </span>
                   )}
+                  {myClaimRequest && (
+                    <span className="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Pending Approval: {myClaimRequest.companyName}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-indigo-200 mt-0.5">
                   {recruiterCompany.companyName 
                     ? `Showing applications submitted specifically to ${recruiterCompany.companyName}.`
+                    : myClaimRequest 
+                    ? `Access to ${myClaimRequest.companyName} workspace is pending owner verification.`
                     : 'Claim or link your user profile to a registered company entity to filter applications.'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-end">
-              {/* Filter Mode Toggle */}
-              <div className="bg-slate-800/80 p-1 rounded-xl border border-slate-700 flex items-center text-xs">
-                <button
-                  onClick={() => setCompanyFilterMode('my-company')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all ${companyFilterMode === 'my-company' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'}`}
-                >
-                  My Company ({companyApplications.length})
-                </button>
-                <button
-                  onClick={() => setCompanyFilterMode('all')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all ${companyFilterMode === 'all' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'}`}
-                >
-                  All Candidate Pool ({applications.length})
-                </button>
-              </div>
+              {/* Filter Mode Toggle - Restricted to Admins */}
+              {isAdmin && (
+                <div className="bg-slate-800/80 p-1 rounded-xl border border-slate-700 flex items-center text-xs">
+                  <button
+                    onClick={() => setCompanyFilterMode('my-company')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all ${companyFilterMode === 'my-company' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'}`}
+                  >
+                    My Company ({companyApplications.length})
+                  </button>
+                  <button
+                    onClick={() => setCompanyFilterMode('all')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all ${companyFilterMode === 'all' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'}`}
+                  >
+                    All Candidate Pool ({applications.length})
+                  </button>
+                </div>
+              )}
 
               <button
                 onClick={() => setShowClaimCompanyModal(true)}
-                className="px-3.5 py-1.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition-all border border-indigo-400/30"
+                disabled={!!myClaimRequest}
+                className="px-3.5 py-1.5 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition-all border border-indigo-400/30"
               >
                 <Link className="w-3.5 h-3.5" />
-                {recruiterCompany.companyName ? 'Change Link' : 'Claim Company Profile'}
+                {recruiterCompany.companyName ? 'Change Link' : myClaimRequest ? 'Join Request Sent' : 'Claim Company Profile'}
               </button>
             </div>
           </div>
+
+          {/* Incoming Claim Requests Approval Panel */}
+          {incomingClaimRequests.length > 0 && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50">
+              <h3 className="text-sm font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2 mb-4">
+                <ShieldAlert className="w-4 h-4" /> Pending Recruiter Access Requests ({incomingClaimRequests.length})
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {incomingClaimRequests.map(req => (
+                  <div key={req.id} className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-200 dark:border-amber-800/50 flex flex-col gap-3">
+                    <div>
+                      <div className="font-bold text-xs text-slate-900 dark:text-white">{req.userEmail}</div>
+                      <div className="text-[10px] text-slate-500">Wants to join: <span className="font-bold text-indigo-600 dark:text-indigo-400">{req.companyName}</span></div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleApproveClaim(req)}
+                        className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold shadow-xs transition-all"
+                      >
+                        Approve Access
+                      </button>
+                      <button
+                        onClick={() => handleRejectClaim(req.id)}
+                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-[10px] font-bold hover:bg-rose-50 hover:text-rose-600 transition-all"
+                      >
+                        Ignore
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Dynamic Pipeline Summary Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -715,16 +842,13 @@ export const EmployerDashboard = () => {
             <EmployerSourcing isEmbedded={true} />
           </div>
         </motion.div>
-      ) : activeTab === 'requisitions' ? (
+      ) : activeTab === 'requisitions' || (activeTab as string) === 'govbridge' ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <JobRequisitionEditor 
-            companyId={recruiterCompany.claimedCompanyId || user?.uid} 
-            companyName={recruiterCompany.companyName} 
+            companyId={effectiveCompanyId || user?.uid} 
+            companyName={recruiterCompany.companyName}
+            initialSubTab={(activeTab as string) === 'govbridge' ? 'govjobs' : undefined}
           />
-        </motion.div>
-      ) : activeTab === 'govbridge' ? (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <GovJobsBridge />
         </motion.div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -967,10 +1091,10 @@ export const EmployerDashboard = () => {
                   Select Registered Company Entity:
                 </label>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {availableCompaniesList.map((comp) => (
+                  {availableCompaniesList.map((comp: any) => (
                     <button
                       key={comp.id}
-                      onClick={() => handleClaimCompany(comp.name, comp.id)}
+                      onClick={() => handleClaimCompany(comp.name, comp.id, comp.ownerId)}
                       disabled={isClaiming}
                       className="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/40 transition-all flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200"
                     >

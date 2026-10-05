@@ -10,10 +10,18 @@
 │   ├── SPRINT_CEREMONIES.md # Agile Sprint Ceremonies & Retrospective Engine
 │   ├── INDEX_ROADMAP.md   # Strategic Roadmap & Completed Milestone Archive
 │   ├── INDEX_AUDIT.md     # Engineering Quality & Compliance Scorecard
+│   ├── RoadMaps/          # Architectural roadmap specifications (e.g., Dedup_Validation_Merge_Engine.md)
 │   ├── RapportVerse_Bridge_Integration_Guide.md # Technical contract & implementation guide for RapportVerse
 │   ├── GovJobs_Bridge_Integration_Guide.md # Technical spec for NEOGOV / GovernmentJobs.com ingestion
 │   └── Ascend_ATS_Partner_Kit.md # Partnership badges and markdown integration kit
 ├── /public/               # Public static assets, machine-readable indexes & device icons
+│   ├── templates/         # Downloadable JSON templates
+│   │   ├── resume-simplified-template.json # Simplified resume JSON template (v2026.10.04)
+│   │   ├── resume-advanced-persona-template.json # Advanced portfolio persona JSON template (v2026.10.04)
+│   │   └── recruiter-profile-template.json # Recruiter talent sourcing JSON template (v2026.10.04)
+│   ├── schemas/           # Formal JSON Schema specifications
+│   │   ├── resume-simplified.schema.json # JSON Schema Draft-07 for simplified resume
+│   │   └── recruiter-profile.schema.json # JSON Schema Draft-07 for recruiter profile
 │   ├── site.webmanifest   # W3C Web App Manifest for mobile and desktop PWA installation
 │   ├── favicon.svg        # Scalable vector favicon
 │   ├── favicon.ico        # Fallback binary favicon
@@ -27,13 +35,17 @@
 │   ├── 404.html           # Standalone accessible 404 Not Found error page
 │   └── 500.html           # Standalone accessible 500 Internal Server Error page
 ├── /src/                  # React Application Source Code
-│   ├── components/        # Reusable UI components (e.g., JobRequisitionEditor, JsonProfileUpload, ResumeUpload, Profile Section ordering, RichText renderers)
+│   ├── components/        # Reusable UI components
+│   │   ├── admin/         # Decomposed Admin Terminal subcomponents (AdminHeaderStats, AdminDataSeedingTab, AdminInvitationsTab, AdminPartnerRequestsTab, AdminRecruiterLeadsTab, AdminSecurityTab, AdminConfirmationModal, adminMockData)
 │   │   └── tracker/       # Job tracker, ingestion form, and AI resume tailoring workspace
 │   ├── firebase/          # Firebase configuration and initialization
 │   ├── hooks/             # Custom React hooks (e.g., useAuth)
 │   ├── pages/             # Page components (e.g., LandingPage, JobSeekerDashboard, JobSeekerAnalytics, ProfileWizard, CompanyWizard, EmployerDashboard, AffiliatesPage, RapportVersePage, AdminPanel with Staffing Invitation Gateway)
 │   ├── types/             # Shared TypeScript definitions
-│   └── utils/             # Utility helpers (e.g., jsonProfileParser)
+│   └── utils/             # Modular utilities (e.g., identityGovernance, jobDedup, profileMerge, materialShiftEngine, applicationLifecycle, jsonProfileParser)
+├── /tests/                # Automated unit and integration test suite
+│   ├── runAllTests.ts     # Master test execution harness
+│   └── unit/              # High-density invariant and boundary unit tests (e.g., jobDedup.test.ts, profileMerge.test.ts, materialShiftEngine.test.ts, identityGovernance.test.ts, jsonProfileParser.test.ts)
 ├── /server.ts             # Express server entry point (API and Vite integration)
 └── /package.json          # Dependency management and script definitions
 ```

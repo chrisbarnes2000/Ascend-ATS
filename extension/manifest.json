@@ -30,8 +30,11 @@
         "https://ais-dev-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*",
         "https://ais-pre-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*"
       ],
+      "exclude_globs": ["*login*", "*apply*", "*signup*", "*register*"],
       "js": ["content.js"],
-      "css": ["styles.css"]
+      "css": ["styles.css"],
+      "run_at": "document_idle",
+      "match_origin_as_fallback": true
     }
   ],
   "icons": {
@@ -39,5 +42,8 @@
   },
   "background": {
     "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://ais-dev-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app https://ais-pre-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://apis.google.com https://www.gstatic.com;"
   }
 }

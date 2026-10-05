@@ -4,9 +4,12 @@ import { collection, onSnapshot, query, orderBy, doc, setDoc, deleteDoc, serverT
 import { useAuth } from '../../hooks/useAuth';
 import { getMatchBreakdown } from '../../hooks/useJobMatching';
 import { JobSeekerProfile } from '../../types';
+import { canonicalizeJobUrl, extractJobIdentifier } from '../../utils/jobDedup';
+import { sanitizeFirestorePayload } from '../../utils/firestoreSanitizer';
 import {
   Link as LinkIcon, Trash2, FileText, Sparkles, Bot, Download,
-  Search, Loader2, Check, X, ArrowRight, MessageSquare, Send, RefreshCw, AlertCircle, FileUp, Edit3, Save
+  Search, Loader2, Check, X, ArrowRight, MessageSquare, Send, RefreshCw, AlertCircle, FileUp, Edit3, Save,
+  Globe, Mail, Building2, Phone, UserCheck, Copy, Key, ShieldCheck, CheckCircle2, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -20,6 +23,7 @@ interface IngestedJob {
   workplaceType: 'Remote' | 'Hybrid' | 'On-Site';
   salaryMin?: number;
   salaryMax?: number;
+  salaryType?: string;
   requiredSkills: string[];
   preferredSkills: string[];
   benefits: string[];
@@ -27,6 +31,20 @@ interface IngestedJob {
   status: 'ingested' | 'researched' | 'tailored' | 'applied';
   createdAt?: any;
   isAiEnhanced?: boolean;
+  sourceBoard?: string;
+  jobNumber?: string;
+  department?: string;
+  recruiterInfo?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    firmName?: string;
+    firmWebsite?: string;
+    clientName?: string;
+    workAuth?: string;
+    contractType?: string;
+    rate?: string;
+  };
   insights?: {
     interviewQuestions: { question: string; answer: string }[];
     unstatedExpectations: string[];
@@ -74,7 +92,10 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
   const [ingestedJobs, setIngestedJobs] = useState<IngestedJob[]>([]);
   const [url, setUrl] = useState('');
   const [pastedText, setPastedText] = useState('');
-  const [ingestionTab, setIngestionTab] = useState<'url' | 'paste'>('url');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [ingestionTab, setIngestionTab] = useState<'url' | 'paste' | 'govjobs' | 'dice_email'>('url');
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestionError, setIngestionError] = useState<string | null>(null);
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -84,6 +105,18 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
   const [editRequirements, setEditRequirements] = useState('');
   const [isFormattingDesc, setIsFormattingDesc] = useState(false);
   const [isFormattingReq, setIsFormattingReq] = useState(false);
+
+  // Client-Side Gemini AI API Key State
+  const [userApiKey, setUserApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ascend_user_gemini_api_key') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [tempApiKey, setTempApiKey] = useState<string>(userApiKey);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [copiedEmailKey, setCopiedEmailKey] = useState<string | null>(null);
 
   // Custom Modal States
   const [customConfirm, setCustomConfirm] = useState<{
@@ -122,6 +155,27 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
   const [tailoredResume, setTailoredResume] = useState<any | null>(null);
   const [resumeTemplate, setResumeTemplate] = useState<'classic' | 'modern' | 'minimalist'>('classic');
 
+  const handlePdfFileSelect = (file: File) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      setIngestionError('Please upload a valid .pdf file.');
+      return;
+    }
+    setPdfFileName(file.name);
+    setPdfFile(file);
+    setIngestionError(null);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      setPdfBase64(base64);
+    };
+    reader.onerror = () => {
+      setIngestionError('Failed to read PDF file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Load Ingested Jobs
   useEffect(() => {
     if (!user) return;
@@ -141,57 +195,55 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
     if (!user) return;
 
     const isUrlMode = ingestionTab === 'url';
+    const isPdfMode = !!pdfBase64;
     const resolvedUrl = isUrlMode ? url.trim() : '';
-    const resolvedText = isUrlMode ? '' : pastedText.trim();
+    const resolvedText = isUrlMode || isPdfMode ? '' : pastedText.trim();
 
     if (isUrlMode && !resolvedUrl) {
       setIngestionError('Please enter a valid job posting URL.');
       return;
     }
-    if (!isUrlMode && !resolvedText) {
-      setIngestionError('Please paste the job description text.');
+    if (!isUrlMode && !resolvedText && !isPdfMode) {
+      setIngestionError('Please paste the job description/email text or select a PDF document.');
       return;
     }
 
     setIsIngesting(true);
     setIngestionError(null);
 
+    const boardType = ingestionTab === 'dice_email' ? 'dice_email' : (ingestionTab === 'govjobs' ? 'govjobs' : (isUrlMode ? 'url' : 'paste'));
+
     try {
       const response = await fetch('/api/ingest-job', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(userApiKey.trim() ? { 'x-gemini-api-key': userApiKey.trim() } : {})
+        },
         body: JSON.stringify({ 
           url: resolvedUrl || undefined, 
-          pastedText: resolvedText || undefined 
+          pastedText: resolvedText || undefined,
+          fileContent: pdfBase64 || undefined,
+          isPdf: isPdfMode,
+          fileName: pdfFileName || undefined,
+          boardType,
+          apiKey: userApiKey.trim() || undefined
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to ingest job posting. Please try pasting the text instead.');
+        throw new Error('Failed to ingest job posting. Please check the document/text and try again.');
       }
 
       const jobData = await response.json();
       
-      // Auto extract job ID from LinkedIn/Indeed URL if available
-      let jobDocId = jobData.extractedId;
-      if (!jobDocId) {
-        if (resolvedUrl) {
-          try {
-            const urlObj = new URL(resolvedUrl);
-            const pathSegments = urlObj.pathname.split('/');
-            const idSegment = pathSegments.find(s => /^\d+$/.test(s) || (s.length > 8 && !s.includes('.')));
-            jobDocId = idSegment || `ingested-${Date.now()}`;
-          } catch {
-            jobDocId = `ingested-${Date.now()}`;
-          }
-        } else {
-          jobDocId = `ingested-${Date.now()}`;
-        }
-      }
+      // Canonicalize URL and deterministically extract stable job document identifier
+      const canonicalUrl = resolvedUrl ? canonicalizeJobUrl(resolvedUrl) : '';
+      const jobDocId = extractJobIdentifier(canonicalUrl || resolvedUrl, resolvedText || pdfFileName || jobData.description || jobData.title);
 
-      // Save to Firebase under users/{uid}/ingestedJobs/{jobDocId}
+      // 1. Save to Candidate's Personal Ingested Tracker under users/{uid}/ingestedJobs/{jobDocId}
       const jobRef = doc(db, `users/${user.uid}/ingestedJobs`, jobDocId);
-      const payload: Omit<IngestedJob, 'id'> = {
+      const rawPayload: any = {
         title: jobData.title || 'Unknown Role',
         companyName: jobData.companyName || 'Unknown Employer',
         description: jobData.description || '',
@@ -200,29 +252,112 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
         workplaceType: jobData.workplaceType || 'Remote',
         salaryMin: jobData.salaryMin || undefined,
         salaryMax: jobData.salaryMax || undefined,
+        salaryType: jobData.salaryType || undefined,
         requiredSkills: jobData.requiredSkills || [],
         preferredSkills: jobData.preferredSkills || [],
         benefits: jobData.benefits || [],
         extractedId: jobDocId,
+        canonicalUrl: canonicalUrl || undefined,
         status: 'ingested',
+        sourceBoard: jobData.sourceBoard || (ingestionTab === 'dice_email' ? 'Dice Recruiter Email' : (ingestionTab === 'govjobs' ? 'GovernmentJobs / NEOGOV' : undefined)),
+        jobNumber: jobData.jobNumber || undefined,
+        department: jobData.department || undefined,
+        recruiterInfo: jobData.recruiterInfo || undefined,
+        expiresAt: jobData.expiresAt || undefined,
+        lastSeenAt: serverTimestamp(),
         createdAt: serverTimestamp(),
         insights: jobData.insights || undefined
       };
 
-      await setDoc(jobRef, payload);
+      const cleanPayload = sanitizeFirestorePayload(rawPayload);
+      await setDoc(jobRef, cleanPayload, { merge: true });
+
+      // 2. Canonical Recruiter/ATS Parity: Mirror to global canonical `jobs/{jobDocId}` collection
+      try {
+        const globalJobRef = doc(db, 'jobs', jobDocId);
+        const leadId = (jobData.recruiterInfo?.email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const canonicalGlobalPayload = sanitizeFirestorePayload({
+          id: jobDocId,
+          companyId: jobData.recruiterInfo?.firmName ? `firm_${leadId}` : `company_${jobDocId}`,
+          companyName: jobData.companyName || 'Employer',
+          posterFirmId: jobData.recruiterInfo?.firmName ? user.uid : undefined,
+          posterFirmName: jobData.recruiterInfo?.firmName || undefined,
+          recruiterInfo: jobData.recruiterInfo || undefined,
+          sourceBoard: jobData.sourceBoard || (ingestionTab === 'dice_email' ? 'Dice Recruiter Email' : (ingestionTab === 'govjobs' ? 'GovernmentJobs / NEOGOV' : 'Candidate Ingestion')),
+          title: jobData.title || 'Position',
+          description: jobData.description || '',
+          requirements: jobData.requirements || '',
+          jobNumber: jobData.jobNumber || undefined,
+          department: jobData.department || undefined,
+          workplaceType: jobData.workplaceType || 'Remote',
+          location: jobData.location || 'United States',
+          salaryMin: jobData.salaryMin || undefined,
+          salaryMax: jobData.salaryMax || undefined,
+          salaryType: jobData.salaryType || undefined,
+          benefits: jobData.benefits || [],
+          requiredSkills: jobData.requiredSkills || [],
+          preferredSkills: jobData.preferredSkills || [],
+          parsedCriteria: {
+            skills: [...(jobData.requiredSkills || []), ...(jobData.preferredSkills || [])],
+            requiredSkills: jobData.requiredSkills || [],
+            preferredSkills: jobData.preferredSkills || [],
+            minExperience: 2,
+            salaryRange: { min: jobData.salaryMin || 0, max: jobData.salaryMax || 0 },
+            workplaceType: jobData.workplaceType || 'Remote',
+            location: jobData.location || 'United States',
+            benefits: jobData.benefits || []
+          },
+          status: 'active',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          isIngestedFromCandidate: true,
+          candidateIngestedBy: user.uid
+        });
+        await setDoc(globalJobRef, canonicalGlobalPayload, { merge: true });
+      } catch (mirrorErr) {
+        console.warn("Could not mirror to canonical jobs collection:", mirrorErr);
+      }
+
+      // Discovered Recruiter Lead generation for Admin Outreach
+      if (jobData.recruiterInfo?.email) {
+        try {
+          const leadId = (jobData.recruiterInfo.email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const leadRef = doc(db, 'recruiter_leads', leadId);
+          const leadPayload = sanitizeFirestorePayload({
+            recruiterName: jobData.recruiterInfo.name || 'Unknown Recruiter',
+            recruiterEmail: jobData.recruiterInfo.email,
+            recruiterPhone: jobData.recruiterInfo.phone || null,
+            firmName: jobData.recruiterInfo.firmName || jobData.companyName,
+            clientName: jobData.recruiterInfo.clientName || null,
+            sourceBoard: jobData.sourceBoard || 'Dice Recruiter Email',
+            jobTitle: jobData.title,
+            discoveredByUid: user.uid,
+            discoveredByEmail: user.email,
+            status: 'discovered',
+            createdAt: serverTimestamp(),
+            lastDiscoveredAt: serverTimestamp()
+          });
+          await setDoc(leadRef, leadPayload, { merge: true });
+        } catch (leadErr) {
+          console.warn("Could not save recruiter lead for admin outreach:", leadErr);
+        }
+      }
 
       setUrl('');
       setPastedText('');
+      setPdfFile(null);
+      setPdfBase64(null);
+      setPdfFileName(null);
       
       // Select the newly ingested job automatically to load details
-      setSelectedJob({ id: jobDocId, ...payload });
+      setSelectedJob({ id: jobDocId, ...cleanPayload });
       setActiveDetailTab('insights');
       setChatMessages([]);
       setTailoredResume(null);
 
     } catch (err: any) {
       console.error(err);
-      setIngestionError(err.message || 'Failed to parse the job details. Please try pasting the job description text.');
+      setIngestionError(err.message || 'Failed to parse the job details. Please try pasting the text or re-uploading the PDF.');
     } finally {
       setIsIngesting(false);
     }
@@ -237,8 +372,14 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
     try {
       const response = await fetch('/api/ingest-job/enhance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job })
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(userApiKey.trim() ? { 'x-gemini-api-key': userApiKey.trim() } : {})
+        },
+        body: JSON.stringify({ 
+          job, 
+          apiKey: userApiKey.trim() || undefined 
+        })
       });
 
       if (!response.ok) {
@@ -420,11 +561,15 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
     try {
       const response = await fetch('/api/ingest-job/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(userApiKey.trim() ? { 'x-gemini-api-key': userApiKey.trim() } : {})
+        },
         body: JSON.stringify({
           messages: [...chatMessages, userMsg],
           job: selectedJob,
-          profile
+          profile,
+          apiKey: userApiKey.trim() || undefined
         })
       });
 
@@ -455,8 +600,15 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
     try {
       const response = await fetch('/api/tailor-resume', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job: selectedJob, profile })
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(userApiKey.trim() ? { 'x-gemini-api-key': userApiKey.trim() } : {})
+        },
+        body: JSON.stringify({ 
+          job: selectedJob, 
+          profile,
+          apiKey: userApiKey.trim() || undefined 
+        })
       });
 
       if (!response.ok) throw new Error('Failed to generate tailored resume.');
@@ -485,37 +637,62 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
   return (
     <div className="space-y-8">
       {/* 1. Job Ingest Section */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-3xl p-8 border border-slate-800 shadow-xl relative overflow-hidden">
-        {/* Decorative background element */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-10 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white rounded-[2rem] p-6 sm:p-8 border border-slate-700/60 shadow-2xl relative overflow-hidden">
+        {/* Decorative ambient background glows */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-10 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="max-w-2xl relative z-10">
-          <div className="flex items-center gap-2 mb-3">
-             <div className="bg-blue-500/20 text-blue-400 p-1.5 rounded-lg border border-blue-500/30">
-               <Bot className="w-5 h-5" />
-             </div>
-             <span className="text-xs font-bold uppercase tracking-widest text-blue-400">Ingestion Pipeline</span>
+        <div className="w-full relative z-10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-700/50">
+            <div>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <div className="bg-blue-500/20 text-blue-400 p-1.5 rounded-xl border border-blue-500/30">
+                  <Bot className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-black uppercase tracking-widest text-blue-400">Candidate Ingestion Engine</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider">
+                  Canonical Job & Outreach Parser
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempApiKey(userApiKey);
+                    setIsApiKeyModalOpen(true);
+                  }}
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all flex items-center gap-1.5 cursor-pointer ${
+                    userApiKey.trim()
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 hover:bg-purple-500/30'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200 hover:bg-slate-700'
+                  }`}
+                  title="Configure personal Gemini AI API key for client-side execution"
+                >
+                  <Key className="w-3 h-3 text-purple-400" />
+                  <span>{userApiKey.trim() ? 'Personal AI Key Active' : 'Configure Custom AI Key'}</span>
+                </button>
+              </div>
+              <h2 className="text-2xl font-black tracking-tight">Ingest & Map Position Specifications</h2>
+            </div>
+            <p className="text-xs text-slate-400 max-w-md leading-relaxed hidden md:block">
+              Analyze job postings from URLs, raw text, or PDF outreach emails. Maps required skills, calculates match percentages against your profile, and unlocks AI STAR interview coaching.
+            </p>
           </div>
-          <h2 className="text-2xl font-bold mb-3">Add Jobs to Your Tracker Instantly</h2>
-          <p className="text-sm text-slate-300 mb-6 leading-relaxed">
-            Choose your preferred ingestion method below to analyze the job specifications, extract core skills, map match scores to your profile, and bootstrap your personalized preparation.
-          </p>
 
-          {/* Ingestion Type Tabs */}
-          <div className="flex border-b border-slate-800 mb-6 gap-6">
+          {/* Ingestion Mode Segmented Navigation */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-slate-950/70 border border-slate-700/60 rounded-2xl mb-6">
             <button
               type="button"
               onClick={() => {
                 setIngestionTab('url');
                 setIngestionError(null);
               }}
-              className={`pb-3 text-xs font-extrabold uppercase tracking-wider relative flex items-center gap-1.5 cursor-pointer transition-colors ${
-                ingestionTab === 'url' ? 'text-blue-400' : 'text-slate-400 hover:text-slate-300'
+              className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                ingestionTab === 'url'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
-              <LinkIcon className="w-4 h-4" /> Import via Job URL
-              {ingestionTab === 'url' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400 rounded-full" />}
+              <LinkIcon className="w-3.5 h-3.5" />
+              <span className="truncate">Job URL</span>
             </button>
             <button
               type="button"
@@ -523,12 +700,44 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
                 setIngestionTab('paste');
                 setIngestionError(null);
               }}
-              className={`pb-3 text-xs font-extrabold uppercase tracking-wider relative flex items-center gap-1.5 cursor-pointer transition-colors ${
-                ingestionTab === 'paste' ? 'text-blue-400' : 'text-slate-400 hover:text-slate-300'
+              className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                ingestionTab === 'paste'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
-              <FileUp className="w-4 h-4" /> Paste Job Description Text
-              {ingestionTab === 'paste' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-400 rounded-full" />}
+              <FileUp className="w-3.5 h-3.5" />
+              <span className="truncate">Standard Job Text</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIngestionTab('govjobs');
+                setIngestionError(null);
+              }}
+              className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                ingestionTab === 'govjobs'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span className="truncate">GovJobs / NEOGOV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIngestionTab('dice_email');
+                setIngestionError(null);
+              }}
+              className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                ingestionTab === 'dice_email'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span className="truncate">Dice Outreach</span>
             </button>
           </div>
 
@@ -540,16 +749,16 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                     <input
                       type="url"
-                      placeholder="Paste LinkedIn, Indeed, or other Job URL (e.g., https://...)"
+                      placeholder="Paste LinkedIn, Indeed, Dice, or direct job posting URL (https://...)"
                       value={url}
                       onChange={e => setUrl(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3.5 bg-slate-950/80 border border-slate-700/80 rounded-2xl text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-100 placeholder-slate-500"
+                      className="w-full pl-12 pr-4 py-3.5 bg-slate-950/90 border border-slate-700/80 rounded-2xl text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-slate-100 placeholder-slate-500 shadow-inner"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={isIngesting || !url.trim()}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-8 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer whitespace-nowrap"
+                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-8 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer whitespace-nowrap"
                   >
                     {isIngesting ? (
                       <>
@@ -568,33 +777,232 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
                 <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 text-xs text-amber-300">
                   <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
-                    <strong>Notice:</strong> High-security, login-gated career platforms like LinkedIn and Indeed actively block public automated scrapers. If the imported results look generic or sparse, we highly recommend selecting the <strong>Paste Job Description Text</strong> tab above for perfect accuracy!
+                    <strong>Scraper Notice:</strong> Career platforms like LinkedIn and Indeed often require active user authentication. If URL extraction produces limited details, switch to the <strong>Standard Job Text</strong> or <strong>Dice Outreach</strong> tabs to paste text or upload the PDF for 100% precision!
                   </p>
                 </div>
               </div>
-            ) : (
+            ) : ingestionTab === 'govjobs' ? (
               <div className="space-y-4">
-                <textarea
-                  rows={6}
-                  placeholder="Paste the raw job description, qualifications, and requirements text directly here to bypass platform scraper restrictions and achieve 100% extraction accuracy..."
-                  value={pastedText}
-                  onChange={e => setPastedText(e.target.value)}
-                  className="w-full p-4 bg-slate-950/80 border border-slate-700/80 rounded-2xl text-xs text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500 placeholder-slate-500 leading-relaxed"
-                />
+                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-300">
+                  <Globe className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    <strong>GovJobs & Public Sector Engine:</strong> Upload a PDF export or paste the full listing from GovernmentJobs.com, municipal portals, or NEOGOV. Automatically extracts Job Number, Department/Division, closing dates, and calculates annual salary from hourly pay scales.
+                  </p>
+                </div>
+
+                {/* PDF File Upload Bar */}
+                <div className="flex items-center justify-between bg-slate-950/80 p-3.5 rounded-2xl border border-emerald-500/30">
+                  <div className="flex items-center gap-2.5">
+                    <FileText className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs text-slate-200 font-bold truncate max-w-xs sm:max-w-md">
+                      {pdfFileName ? `Selected PDF: ${pdfFileName}` : 'Upload PDF export or paste listing text below'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs flex items-center gap-1.5 border border-slate-600 transition-all shadow-xs">
+                      <Download className="w-3.5 h-3.5 text-emerald-400 rotate-180" />
+                      <span>{pdfFileName ? 'Change PDF' : 'Upload PDF'}</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handlePdfFileSelect(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                    {pdfFileName && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPdfFile(null);
+                          setPdfBase64(null);
+                          setPdfFileName(null);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-400 cursor-pointer"
+                        title="Remove PDF"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {!pdfFileName && (
+                  <textarea
+                    rows={8}
+                    placeholder="Paste raw GovernmentJobs / NEOGOV job listing text here (e.g. Job Number: 26-00987, Department: Public Works, Salary: $42.50 - $55.00 Hourly)..."
+                    value={pastedText}
+                    onChange={e => setPastedText(e.target.value)}
+                    className="w-full p-4 bg-slate-950/90 border border-emerald-500/30 rounded-2xl text-xs text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 placeholder-slate-500 leading-relaxed font-mono shadow-inner resize-none"
+                  />
+                )}
+
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    disabled={isIngesting || !pastedText.trim()}
-                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-8 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer whitespace-nowrap"
+                    disabled={isIngesting || (!pastedText.trim() && !pdfBase64)}
+                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-8 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer whitespace-nowrap"
                   >
                     {isIngesting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Analyzing Text...</span>
+                        <span>Parsing Public Sector Listing...</span>
                       </>
                     ) : (
                       <>
-                        <span>Analyze & Ingest Text</span>
+                        <Globe className="w-4 h-4" />
+                        <span>Ingest GovJob Posting</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : ingestionTab === 'dice_email' ? (
+              <div className="space-y-4">
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-2.5 text-xs text-amber-300">
+                  <Mail className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    <strong>Dice & Outreach Parser:</strong> Upload the email PDF printout or paste the recruiter message. Automatically captures recruiter contact details, staffing agency, W2/C2C contract models, client names, and compensation rates.
+                  </p>
+                </div>
+
+                {/* PDF File Upload Bar */}
+                <div className="flex items-center justify-between bg-slate-950/80 p-3.5 rounded-2xl border border-amber-500/30">
+                  <div className="flex items-center gap-2.5">
+                    <FileText className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs text-slate-200 font-bold truncate max-w-xs sm:max-w-md">
+                      {pdfFileName ? `Selected PDF: ${pdfFileName}` : 'Upload email PDF printout or paste email text below'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs flex items-center gap-1.5 border border-slate-600 transition-all shadow-xs">
+                      <Download className="w-3.5 h-3.5 text-amber-400 rotate-180" />
+                      <span>{pdfFileName ? 'Change PDF' : 'Upload PDF'}</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handlePdfFileSelect(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                    {pdfFileName && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPdfFile(null);
+                          setPdfBase64(null);
+                          setPdfFileName(null);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-400 cursor-pointer"
+                        title="Remove PDF"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {!pdfFileName && (
+                  <textarea
+                    rows={8}
+                    placeholder="Paste the recruiter email reach-out here (e.g. 'This is Nitin from Tekfortune... Role: DevOps Engineer... Location: Atlanta, GA... Work Auth: W2... Email: nitin@tekfortune.com')..."
+                    value={pastedText}
+                    onChange={e => setPastedText(e.target.value)}
+                    className="w-full p-4 bg-slate-950/90 border border-amber-500/30 rounded-2xl text-xs text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-amber-500 placeholder-slate-500 leading-relaxed font-mono shadow-inner resize-none"
+                  />
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isIngesting || (!pastedText.trim() && !pdfBase64)}
+                    className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-8 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    {isIngesting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Parsing Recruiter Outreach...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4" />
+                        <span>Ingest Recruiter Outreach</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-slate-950/80 p-3.5 rounded-2xl border border-slate-700/60">
+                  <div className="flex items-center gap-2.5">
+                    <FileText className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs text-slate-200 font-bold truncate max-w-xs sm:max-w-md">
+                      {pdfFileName ? `Selected PDF: ${pdfFileName}` : 'Upload job specification PDF or paste text below'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs flex items-center gap-1.5 border border-slate-600 transition-all shadow-xs">
+                      <Download className="w-3.5 h-3.5 text-blue-400 rotate-180" />
+                      <span>{pdfFileName ? 'Change PDF' : 'Upload PDF'}</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handlePdfFileSelect(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                    {pdfFileName && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPdfFile(null);
+                          setPdfBase64(null);
+                          setPdfFileName(null);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-400 cursor-pointer"
+                        title="Remove PDF"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {!pdfFileName && (
+                  <textarea
+                    rows={8}
+                    placeholder="Paste the raw job description, qualifications, and requirements text directly here to bypass platform scraper restrictions and achieve 100% extraction accuracy..."
+                    value={pastedText}
+                    onChange={e => setPastedText(e.target.value)}
+                    className="w-full p-4 bg-slate-950/90 border border-slate-700/80 rounded-2xl text-xs text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500 placeholder-slate-500 leading-relaxed shadow-inner resize-none"
+                  />
+                )}
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isIngesting || (!pastedText.trim() && !pdfBase64)}
+                    className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white px-8 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    {isIngesting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Analyzing Position Document...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Analyze & Ingest Document</span>
                         <Check className="w-4 h-4" />
                       </>
                     )}
@@ -628,11 +1036,21 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
           <div className="grid grid-cols-1 gap-4">
             {ingestedJobs.map((job) => {
               const breakdown = getMatchBreakdown(profile, {
-                title: job.title,
+                ...job,
+                title: job.title || 'Role',
+                description: job.description || '',
+                requirements: job.requirements || '',
+                workplaceType: job.workplaceType || 'Remote',
                 requiredSkills: job.requiredSkills || [],
                 preferredSkills: job.preferredSkills || [],
                 parsedCriteria: {
-                  benefits: job.benefits || []
+                  salaryRange: { min: job.salaryMin || 100000, max: job.salaryMax || 150000 },
+                  workplaceType: job.workplaceType || 'Remote',
+                  minExperience: 1,
+                  benefits: job.benefits || [],
+                  requiredSkills: job.requiredSkills || [],
+                  preferredSkills: job.preferredSkills || [],
+                  ...(job.parsedCriteria || {})
                 }
               } as any);
 
@@ -691,11 +1109,31 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
                         <Check className="w-3 h-3 text-blue-500" /> Local NLP
                       </span>
                     )}
-                    {breakdown.skillsMatch.totalRequired > 0 && (
-                      <span className="bg-slate-50 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300 px-2.5 py-1 rounded-lg">
-                        {Math.round((breakdown.skillsMatch.matchedCount / breakdown.skillsMatch.totalRequired) * 100)}% Match
+                    {job.sourceBoard && (
+                      <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold">
+                        {job.sourceBoard.includes('Dice') ? <Mail className="w-3 h-3 text-amber-500" /> : <Globe className="w-3 h-3 text-emerald-500" />}
+                        {job.sourceBoard}
                       </span>
                     )}
+                    {job.jobNumber && (
+                      <span className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-lg font-mono font-bold">
+                        #{job.jobNumber}
+                      </span>
+                    )}
+                    {job.recruiterInfo?.name && (
+                      <span className="bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold">
+                        <UserCheck className="w-3 h-3 text-amber-500" /> {job.recruiterInfo.name} ({job.recruiterInfo.firmName || 'Agency'})
+                      </span>
+                    )}
+                    <span className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 ${
+                      breakdown.overallScore >= 85 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                      breakdown.overallScore >= 70 ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
+                      breakdown.overallScore >= 50 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                      'bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300'
+                    }`}>
+                      <Sparkles className="w-3 h-3 text-purple-400" />
+                      <span>{breakdown.overallScore}% Match</span>
+                    </span>
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] pt-3 border-t border-slate-100 dark:border-slate-800 text-slate-400 font-semibold">
@@ -814,6 +1252,132 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
                           </>
                         )}
                       </button>
+                    </div>
+                  )}
+
+                  {/* Recruiter Outreach Card (Dice / Email Reach-out) */}
+                  {selectedJob.recruiterInfo && (
+                    <div className="p-5 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-orange-500/10 border border-amber-500/30 rounded-3xl space-y-4 shadow-sm">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-amber-500 dark:text-amber-400 uppercase tracking-wider">
+                          <div className="p-1.5 bg-amber-500/20 rounded-lg">
+                            <Mail className="w-4 h-4 text-amber-500" />
+                          </div>
+                          <span>Direct Recruiter Outreach Intelligence</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {selectedJob.recruiterInfo.contractType && (
+                            <span className="text-[10px] bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold px-2.5 py-1 rounded-full border border-amber-500/30">
+                              {selectedJob.recruiterInfo.contractType}
+                            </span>
+                          )}
+                          {selectedJob.recruiterInfo.workAuth && (
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold px-2.5 py-1 rounded-full border border-emerald-500/30">
+                              {selectedJob.recruiterInfo.workAuth}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        {selectedJob.recruiterInfo.name && (
+                          <div className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-2xl border border-amber-200/50 dark:border-slate-800 shadow-xs">
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">Recruiter</span>
+                            <span className="font-extrabold text-slate-900 dark:text-slate-100 text-sm">{selectedJob.recruiterInfo.name}</span>
+                            {selectedJob.recruiterInfo.firmName && (
+                              <span className="text-slate-500 dark:text-slate-400 block text-[11px] font-medium mt-0.5">
+                                @ {selectedJob.recruiterInfo.firmName}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {selectedJob.recruiterInfo.email && (
+                          <div className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-2xl border border-amber-200/50 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                            <div>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">Direct Email</span>
+                              <span className="font-bold text-blue-600 dark:text-blue-400 text-xs break-all block">
+                                {selectedJob.recruiterInfo.email}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (selectedJob.recruiterInfo?.email) {
+                                    navigator.clipboard.writeText(selectedJob.recruiterInfo.email);
+                                    setCopiedEmailKey('recruiter_email');
+                                    setTimeout(() => setCopiedEmailKey(null), 2500);
+                                  }
+                                }}
+                                className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                {copiedEmailKey === 'recruiter_email' ? (
+                                  <>
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                    <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3" />
+                                    <span>Copy Email</span>
+                                  </>
+                                )}
+                              </button>
+                              <a
+                                href={`mailto:${selectedJob.recruiterInfo.email}?subject=${encodeURIComponent(`Application / Interest: ${selectedJob.title}`)}&body=${encodeURIComponent(`Hi ${selectedJob.recruiterInfo.name || 'there'},\n\nI saw your reach-out regarding the ${selectedJob.title} position at ${selectedJob.recruiterInfo.firmName || selectedJob.companyName}. My experience strongly aligns with your qualifications.\n\nBest regards,\n${profile?.personalInfo ? `${profile.personalInfo.firstName} ${profile.personalInfo.lastName}` : ''}`)}`}
+                                className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Email Recruiter</span>
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedJob.recruiterInfo.phone && (
+                          <div className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-2xl border border-amber-200/50 dark:border-slate-800 shadow-xs">
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">Direct Phone / Desk</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-amber-500" />
+                              {selectedJob.recruiterInfo.phone}
+                            </span>
+                          </div>
+                        )}
+
+                        {selectedJob.recruiterInfo.clientName && (
+                          <div className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-2xl border border-amber-200/50 dark:border-slate-800 shadow-xs">
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">End Client</span>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1">
+                              <Building2 className="w-3 h-3 text-indigo-500" />
+                              {selectedJob.recruiterInfo.clientName}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Public Sector / GovJobs Card */}
+                  {(selectedJob.jobNumber || selectedJob.department) && (
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                        <Globe className="w-4 h-4 text-emerald-400" /> GovernmentJobs / NEOGOV Specification
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {selectedJob.jobNumber && (
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase block">Requisition #</span>
+                            <span className="font-mono font-bold text-slate-200">#{selectedJob.jobNumber}</span>
+                          </div>
+                        )}
+                        {selectedJob.department && (
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase block">Department / Agency</span>
+                            <span className="font-bold text-slate-200">{selectedJob.department}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1369,6 +1933,115 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
                   className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-md shadow-blue-500/15 transition-all cursor-pointer"
                 >
                   Dismiss
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+        {/* Custom API Key Configuration Modal */}
+        {isApiKeyModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsApiKeyModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs"
+            />
+            
+            {/* Dialog Panel */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 text-left"
+            >
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-50 dark:bg-purple-950/40 text-purple-600 rounded-2xl flex items-center justify-center shrink-0 border border-purple-200 dark:border-purple-800">
+                    <Key className="w-5 h-5 text-purple-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900 dark:text-slate-100">Client-Side Gemini API Key</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Direct user execution for candidate AI calls</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsApiKeyModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+                All client-side AI calls (PDF parsing, Deep second-pass scan, Copilot chat, and tailored resume generation) run seamlessly. You can provide your personal Gemini API key stored securely in your browser session.
+              </p>
+
+              <div className="space-y-3 mb-6">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  Gemini API Key (AI Studio)
+                </label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    placeholder="AIzaSy..."
+                    value={tempApiKey}
+                    onChange={(e) => setTempApiKey(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Keys are stored strictly in local browser storage.</span>
+                  {userApiKey && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.removeItem('ascend_user_gemini_api_key');
+                        setUserApiKey('');
+                        setTempApiKey('');
+                      }}
+                      className="text-rose-500 hover:underline font-bold cursor-pointer"
+                    >
+                      Clear Saved Key
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsApiKeyModalOpen(false)}
+                  className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cleanKey = tempApiKey.trim();
+                    if (cleanKey) {
+                      localStorage.setItem('ascend_user_gemini_api_key', cleanKey);
+                      setUserApiKey(cleanKey);
+                    } else {
+                      localStorage.removeItem('ascend_user_gemini_api_key');
+                      setUserApiKey('');
+                    }
+                    setIsApiKeyModalOpen(false);
+                    setCustomAlert({
+                      isOpen: true,
+                      title: 'API Key Saved',
+                      message: cleanKey 
+                        ? 'Your custom Gemini API key is active. All subsequent AI requests will run with your dedicated quota.' 
+                        : 'Custom API key removed. Returning to default system configuration.'
+                    });
+                  }}
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 rounded-xl shadow-md shadow-purple-500/20 transition-all cursor-pointer"
+                >
+                  Save API Key
                 </button>
               </div>
             </motion.div>

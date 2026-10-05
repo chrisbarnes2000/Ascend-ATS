@@ -31,8 +31,13 @@ service cloud.firestore {
       
       // Profiles and any other subcollections under a user
       match /profiles/{profileId} {
-        allow read: if isOwner(userId) || (resource != null && resource.data.privacy != null && resource.data.privacy.isPublic == true) || isAdmin();
-        allow write: if isOwner(userId) || isAdmin();
+        allow read: if isOwner(userId) || 
+          (resource != null && resource.data.privacy != null && resource.data.privacy.isPublic == true) || 
+          (profileId == 'recruiter' && (resource.data.isPublic == null || resource.data.isPublic == true)) ||
+          isAdmin() ||
+          (profileId == 'company' && resource.data.claimedCompanyId != null && exists(/databases/$(database)/documents/companies/$(resource.data.claimedCompanyId)) && get(/databases/$(database)/documents/companies/$(resource.data.claimedCompanyId)).data.ownerUserId == request.auth.uid);
+        allow write: if isOwner(userId) || isAdmin() ||
+          (profileId == 'company' && request.resource.data.claimedCompanyId != null && exists(/databases/$(database)/documents/companies/$(request.resource.data.claimedCompanyId)) && get(/databases/$(database)/documents/companies/$(request.resource.data.claimedCompanyId)).data.ownerUserId == request.auth.uid);
       }
       
       match /{otherSub=**} {
@@ -60,12 +65,20 @@ service cloud.firestore {
       allow write: if isSignedIn(); 
     }
 
-    // Applications
+    // Applications (Deterministic Dedup & Role Boundaries)
     match /applications/{applicationId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.seekerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.seekerId == request.auth.uid &&
+        (!exists(/databases/$(database)/documents/applications/$(applicationId)));
       allow update: if isSignedIn();
       allow delete: if isAdmin();
+    }
+
+    // Immutable Audit Logs (Write-Once, No Mutation)
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
     // Role Clarification & Info Requests
@@ -86,6 +99,30 @@ service cloud.firestore {
     match /partner_requests/{requestId} {
       allow create: if true; // Public lead generation
       allow read, write: if isAdmin();
+    }
+
+    // Company Claim Requests
+    match /company_claim_requests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() || 
+        resource.data.companyOwnerId == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.companyOwnerId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Company Recruiter Invitations
+    match /company_recruiter_invitations/{inviteCode} {
+      allow get: if true; // Public check during signup or invite acceptance
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
   }
 }

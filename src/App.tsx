@@ -20,6 +20,7 @@ import { LegalPage } from './pages/LegalPage';
 import { AffiliatesPage } from './pages/AffiliatesPage';
 import { RapportVersePage } from './pages/RapportVersePage';
 import { Footer } from './components/Footer';
+import { ProfileRestartPrompt } from './components/profile/ProfileRestartPrompt';
 import { 
   LogOut, 
   TrendingUp,
@@ -47,6 +48,7 @@ import {
   ShieldAlert,
   Shield,
   Building,
+  Users,
   Loader2
 } from 'lucide-react';
 import { doc, setDoc, serverTimestamp, onSnapshot, collection, addDoc } from 'firebase/firestore';
@@ -102,15 +104,21 @@ const Navbar = () => {
     return points;
   };
 
-  const isCompany = ['company', 'recruiter', 'staffingFirm'].includes(appUser?.accountType || '');
-  const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1';
+  const isRecruiter = appUser?.accountType === 'recruiter' || appUser?.staffingRole === 'recruiter';
+  const isCompanyOwner = appUser?.accountType === 'company' || appUser?.accountType === 'companyOwner';
+  const isCompany = ['company', 'recruiter', 'staffingFirm', 'companyOwner'].includes(appUser?.accountType || '');
+  const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin';
   
   const displayName = isCompany 
-    ? (profileData?.companyName || appUser?.email?.split('@')[0] || 'Employer')
+    ? (profileData?.companyName || appUser?.companyName || appUser?.email?.split('@')[0] || 'Employer')
     : (profileData?.personalInfo?.preferredName || profileData?.personalInfo?.firstName || appUser?.email?.split('@')[0] || 'Candidate');
   
-  const displayRole = isCompany
-    ? (profileData?.industry || 'Recruiter')
+  const displayRole = isAdmin
+    ? 'System Administrator'
+    : isCompanyOwner
+    ? 'Company Owner'
+    : isRecruiter
+    ? 'Recruiter'
     : (profileData?.targetRole || 'Job Seeker');
 
   const progress = isCompany ? getCompanyCompleteness() : getCompleteness();
@@ -118,7 +126,10 @@ const Navbar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md z-50">
       <div className="w-full md:w-[75vw] max-w-none mx-auto px-4 h-full flex items-center justify-between">
-        <a href="#" className="flex items-center gap-2">
+        <a 
+          href={isAdmin ? "#admin" : isCompany ? "#employer" : user ? "#seeker" : "#"} 
+          className="flex items-center gap-2"
+        >
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-200">
             <TrendingUp className="text-white w-5 h-5" />
           </div>
@@ -210,29 +221,33 @@ const Navbar = () => {
 
                     {/* Navigation Options */}
                     <div className="space-y-1">
-                      <div className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2.5 mb-2.5">
-                        My Workspaces
+                      {/* Shared Account Actions */}
+                      <div className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2.5 mb-2 mt-2">
+                        Account Profile
                       </div>
+                      <a 
+                        href={isCompanyOwner ? (profileData?.claimedCompanyId ? `#company/${profileData.claimedCompanyId}` : '#company-management') : `#profile/${user.uid}`} 
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 transition-colors"
+                      >
+                        <Eye className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
+                        {isCompanyOwner ? 'View Company Profile' : 'View Public Profile'}
+                      </a>
+                      <a 
+                        href={isCompanyOwner ? "#company-management" : isRecruiter ? "#employer" : "#edit-profile"} 
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 transition-colors"
+                      >
+                        <Edit3 className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
+                        {isCompanyOwner ? 'Manage Company Details' : isRecruiter ? 'Recruiter Workspace' : 'Edit Profile Builder'}
+                      </a>
 
-                      {/* Candidate Roles */}
-                      {!isCompany && (
+                      {/* Candidate Workspace */}
+                      {(!isCompany || isAdmin) && (
                         <>
-                          <a 
-                            href={`#profile/${user.uid}`} 
-                            onClick={() => setIsDropdownOpen(false)}
-                            className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 transition-colors"
-                          >
-                            <Eye className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
-                            View Public Profile
-                          </a>
-                          <a 
-                            href="#edit-profile" 
-                            onClick={() => setIsDropdownOpen(false)}
-                            className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 transition-colors"
-                          >
-                            <Edit3 className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
-                            Edit Profile Builder
-                          </a>
+                          <div className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2.5 mb-2 mt-4">
+                            Candidate Workspace
+                          </div>
                           <a 
                             href="#analytics" 
                             onClick={() => setIsDropdownOpen(false)}
@@ -250,7 +265,7 @@ const Navbar = () => {
                             Browse Companies
                           </a>
                           <a 
-                            href="#" 
+                            href="#seeker" 
                             onClick={() => setIsDropdownOpen(false)}
                             className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 transition-colors"
                           >
@@ -260,17 +275,22 @@ const Navbar = () => {
                         </>
                       )}
 
-                      {/* Recruiter / Employer Roles */}
-                      {isCompany && (
+                      {/* Employer / Recruiter Workspace */}
+                      {(isCompany || isAdmin) && (
                         <>
-                          <a 
-                            href="#companies" 
-                            onClick={() => setIsDropdownOpen(false)}
-                            className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 transition-colors"
-                          >
-                            <Building className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
-                            Browse Companies
-                          </a>
+                          <div className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2.5 mb-2 mt-4">
+                            {isCompanyOwner ? 'Company & Recruiter Workspace' : 'Recruitment Workspace'}
+                          </div>
+                          {(isCompanyOwner || isAdmin) && (
+                            <a 
+                              href="#company-management" 
+                              onClick={() => setIsDropdownOpen(false)}
+                              className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 transition-colors"
+                            >
+                              <Users className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
+                              Manage Company & Recruiters
+                            </a>
+                          )}
                           <a 
                             href="#sourcing" 
                             onClick={() => setIsDropdownOpen(false)}
@@ -280,31 +300,39 @@ const Navbar = () => {
                             Talent Sourcing Engine
                           </a>
                           <a 
-                            href="#" 
+                            href="#employer" 
                             onClick={() => setIsDropdownOpen(false)}
                             className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 transition-colors"
                           >
                             <LayoutDashboard className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500" />
-                            Employer Dashboard
+                            Employer Pipeline Dashboard
+                          </a>
+                        </>
+                      )}
+
+                      {/* Developer Admin Dashboard */}
+                      {isAdmin && (
+                        <>
+                          <div className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2.5 mb-2 mt-4">
+                            System Administration
+                          </div>
+                          <a 
+                            href="#admin" 
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold bg-indigo-50/50 hover:bg-indigo-50 dark:bg-indigo-950/20 dark:hover:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 transition-colors"
+                          >
+                            <Terminal className="w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400" />
+                            Admin Panel (Seeder)
                           </a>
                         </>
                       )}
 
                       <div className="my-2.5 border-t border-slate-100 dark:border-slate-800/80" />
                       
-                      {/* Developer Admin Dashboard */}
-                      {isAdmin && (
-                        <a 
-                          href="#admin" 
-                          onClick={() => setIsDropdownOpen(false)}
-                          className="flex items-center gap-3 p-2.5 rounded-xl text-sm font-semibold bg-indigo-50/50 hover:bg-indigo-50 dark:bg-indigo-950/20 dark:hover:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 transition-colors"
-                        >
-                          <Terminal className="w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400" />
-                          Admin Panel (Seeder)
-                        </a>
-                      )}
-
-                      {/* Legal Center Links */}
+                      {/* Platform Governance */}
+                      <div className="text-[9px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2.5 mb-2 mt-2">
+                        Platform Governance
+                      </div>
                       <a 
                         href="#legal" 
                         onClick={() => setIsDropdownOpen(false)}
@@ -339,7 +367,7 @@ const Navbar = () => {
 
 const RegistrationFlow = ({ initialRequestMode = false }: { initialRequestMode?: boolean, key?: string }) => {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } = useAuth();
-  const [selectedType, setSelectedType] = useState<'jobSeeker' | 'company' | null>(initialRequestMode ? 'company' : null);
+  const [selectedType, setSelectedType] = useState<'jobSeeker' | 'recruiter' | 'companyOwner' | 'company' | null>(initialRequestMode ? 'companyOwner' : null);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>(initialRequestMode ? 'signup' : 'login');
   const [isRequestMode, setIsRequestMode] = useState(initialRequestMode);
   const [email, setEmail] = useState('');
@@ -352,7 +380,7 @@ const RegistrationFlow = ({ initialRequestMode = false }: { initialRequestMode?:
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Extract query parameters from hash (e.g. #signup?invite=ABC123XYZ&email=user@example.com) or search
+    // Extract query parameters from hash (e.g. #signup?invite=REC-ABC12&email=user@example.com) or search
     const hashPart = window.location.hash;
     const queryString = hashPart.includes('?') 
       ? hashPart.split('?')[1] 
@@ -366,9 +394,17 @@ const RegistrationFlow = ({ initialRequestMode = false }: { initialRequestMode?:
       
       if (urlInvite) {
         setInviteCode(urlInvite.toUpperCase().trim());
-        setSelectedType('company');
+        if (urlRole === 'recruiter' || urlInvite.toUpperCase().startsWith('REC-')) {
+          setSelectedType('recruiter');
+        } else {
+          setSelectedType('companyOwner');
+        }
         setAuthMode('signup');
         setIsRequestMode(false);
+      } else if (urlRole) {
+        if (urlRole === 'recruiter') setSelectedType('recruiter');
+        else if (urlRole === 'companyOwner' || urlRole === 'company') setSelectedType('companyOwner');
+        else if (urlRole === 'jobSeeker') setSelectedType('jobSeeker');
       }
       if (urlEmail) {
         setEmail(decodeURIComponent(urlEmail));
@@ -494,28 +530,45 @@ const RegistrationFlow = ({ initialRequestMode = false }: { initialRequestMode?:
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
           {authMode === 'signup' && (
             <div className="p-2 bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button 
+                  type="button"
                   onClick={() => setSelectedType('jobSeeker')}
-                  className={`p-4 rounded-3xl transition-all flex flex-col items-center gap-2 border-2 ${
+                  className={`p-3 rounded-2xl transition-all flex flex-col items-center gap-1.5 border-2 text-center ${
                     selectedType === 'jobSeeker' 
                       ? 'border-blue-500 bg-white dark:bg-slate-900 shadow-sm' 
                       : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                   }`}
                 >
-                  <UserCircle className={`w-6 h-6 ${selectedType === 'jobSeeker' ? 'text-blue-500' : ''}`} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Job Seeker</span>
+                  <UserCircle className={`w-5 h-5 ${selectedType === 'jobSeeker' ? 'text-blue-500' : ''}`} />
+                  <span className="text-[10px] font-black uppercase tracking-tight">Job Seeker</span>
+                  <span className="text-[9px] text-slate-400 hidden sm:inline">Candidate</span>
                 </button>
                 <button 
-                  onClick={() => setSelectedType('company')}
-                  className={`p-4 rounded-3xl transition-all flex flex-col items-center gap-2 border-2 ${
-                    selectedType === 'company' 
+                  type="button"
+                  onClick={() => setSelectedType('recruiter')}
+                  className={`p-3 rounded-2xl transition-all flex flex-col items-center gap-1.5 border-2 text-center ${
+                    selectedType === 'recruiter' 
                       ? 'border-indigo-500 bg-white dark:bg-slate-900 shadow-sm' 
                       : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                   }`}
                 >
-                  <Briefcase className={`w-6 h-6 ${selectedType === 'company' ? 'text-indigo-500' : ''}`} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Company / Firm</span>
+                  <Users className={`w-5 h-5 ${selectedType === 'recruiter' ? 'text-indigo-500' : ''}`} />
+                  <span className="text-[10px] font-black uppercase tracking-tight">Recruiter</span>
+                  <span className="text-[9px] text-slate-400 hidden sm:inline">Public Profile</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedType('companyOwner')}
+                  className={`p-3 rounded-2xl transition-all flex flex-col items-center gap-1.5 border-2 text-center ${
+                    selectedType === 'companyOwner' || selectedType === 'company'
+                      ? 'border-emerald-500 bg-white dark:bg-slate-900 shadow-sm' 
+                      : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Briefcase className={`w-5 h-5 ${selectedType === 'companyOwner' || selectedType === 'company' ? 'text-emerald-500' : ''}`} />
+                  <span className="text-[10px] font-black uppercase tracking-tight">Company Owner</span>
+                  <span className="text-[9px] text-slate-400 hidden sm:inline">Business Mgr</span>
                 </button>
               </div>
             </div>
@@ -590,26 +643,32 @@ const RegistrationFlow = ({ initialRequestMode = false }: { initialRequestMode?:
                 </motion.div>
               )}
 
-              {authMode === 'signup' && selectedType === 'company' && !isRequestMode && (
+              {authMode === 'signup' && (selectedType === 'recruiter' || selectedType === 'companyOwner' || selectedType === 'company') && !isRequestMode && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
                   <div className="flex items-center justify-between px-1 mb-2">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">Staffing Invite Code</label>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">
+                      {selectedType === 'recruiter' ? 'Company Recruiter Invite Code (Optional)' : 'Staffing / Partner Code (Optional)'}
+                    </label>
                     <button 
                       type="button"
                       onClick={() => setIsRequestMode(true)}
                       className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-500 transition-colors"
                     >
-                      No code?
+                      Need help?
                     </button>
                   </div>
                   <input 
                     type="text"
-                    required
                     value={inviteCode}
                     onChange={e => setInviteCode(e.target.value.toUpperCase())}
-                    placeholder="ABC-123-XYZ"
+                    placeholder={selectedType === 'recruiter' ? "REC-XXXX-XXXXX (Optional)" : "ABC-123-XYZ (Optional)"}
                     className="w-full px-5 py-4 rounded-2xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/30 dark:bg-indigo-950/20 text-sm font-black text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500 transition-all"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1.5 px-1">
+                    {selectedType === 'recruiter' 
+                      ? 'If your company owner provided an invite code, enter it to link directly to their pipeline.' 
+                      : 'Enter an invitation code if you have one, or proceed to build your company workspace.'}
+                  </p>
                 </motion.div>
               )}
 
@@ -784,7 +843,7 @@ const DashboardSkeleton = () => {
 };
 
 const AppContent = () => {
-  const { user, appUser, loading } = useAuth();
+  const { user, appUser, loading, isProfileConfigured, recheckProfileConfigured } = useAuth();
   const [hash, setHash] = useState(window.location.hash);
 
   useEffect(() => {
@@ -834,11 +893,17 @@ const AppContent = () => {
       title = "Company Management | Ascend ATS";
     } else if (hash.startsWith('#company/')) {
       title = "Company Profile View | Ascend ATS";
-    } else if (hash === '#admin' && (user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1')) {
+    } else if (hash === '#seeker') {
+      title = "Candidate Dashboard | Ascend ATS";
+    } else if (hash === '#employer') {
+      title = "Employer Dashboard | Ascend ATS";
+    } else if (hash === '#admin' && (user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin')) {
       title = "Developer Seeder & Admin Panel | Ascend ATS";
     } else if (hash.startsWith('#job/')) {
       title = "Job Details & Direct Match Assessment | Ascend ATS";
-    } else if (['company', 'recruiter', 'staffingFirm'].includes(appUser?.accountType || '')) {
+    } else if (user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin') {
+      title = "Developer Seeder & Admin Panel | Ascend ATS";
+    } else if (['company', 'recruiter', 'staffingFirm', 'companyOwner'].includes(appUser?.accountType || '')) {
       title = "Employer Dashboard | Ascend ATS";
     } else {
       title = "Candidate Dashboard | Ascend ATS";
@@ -909,6 +974,16 @@ const AppContent = () => {
           ) : (
             <LandingPage key="landing" />
           )
+        ) : (!isProfileConfigured && !(user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin') && hash !== '#onboarding') ? (
+          <motion.div
+            key="restart-prompt"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.02 }}
+            transition={{ duration: 0.3 }}
+          >
+            <ProfileRestartPrompt onContinueSetup={() => { window.location.hash = '#onboarding'; }} />
+          </motion.div>
         ) : !appUser?.profileCompleted ? (
           <motion.div
             key="wizard"
@@ -917,10 +992,16 @@ const AppContent = () => {
             exit={{ opacity: 0, scale: 1.02 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           >
-            {appUser?.accountType === 'company' || appUser?.accountType === 'recruiter' ? (
-              <CompanyWizard onComplete={() => { window.location.hash = ''; }} />
+            {appUser?.accountType === 'company' || appUser?.accountType === 'recruiter' || appUser?.accountType === 'companyOwner' ? (
+              <CompanyWizard onComplete={async () => { 
+                await recheckProfileConfigured();
+                window.location.hash = appUser?.accountType === 'recruiter' ? '#employer' : '#company-management'; 
+              }} />
             ) : (
-              <ProfileWizard onComplete={() => { window.location.hash = ''; }} />
+              <ProfileWizard onComplete={async () => { 
+                await recheckProfileConfigured();
+                window.location.hash = '#seeker'; 
+              }} />
             )}
           </motion.div>
         ) : hash === '#onboarding' ? (
@@ -931,10 +1012,16 @@ const AppContent = () => {
             exit={{ opacity: 0, scale: 1.02 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           >
-            {appUser?.accountType === 'company' || appUser?.accountType === 'recruiter' ? (
-              <CompanyWizard onComplete={() => { window.location.hash = '#edit-profile'; }} />
+            {appUser?.accountType === 'company' || appUser?.accountType === 'recruiter' || appUser?.accountType === 'companyOwner' ? (
+              <CompanyWizard onComplete={async () => { 
+                await recheckProfileConfigured();
+                window.location.hash = '#employer'; 
+              }} />
             ) : (
-              <ProfileWizard onComplete={() => { window.location.hash = '#edit-profile'; }} />
+              <ProfileWizard onComplete={async () => { 
+                await recheckProfileConfigured();
+                window.location.hash = '#seeker'; 
+              }} />
             )}
           </motion.div>
         ) : (
@@ -958,7 +1045,7 @@ const AppContent = () => {
             ) : hash.startsWith('#company/') ? (
               <CompanyProfileView />
             ) : hash === '#admin' ? (
-              (user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1') ? (
+              (user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin') ? (
                 <AdminPanel />
               ) : (
                 <div className="min-h-screen pt-24 flex flex-col items-center justify-center p-4">
@@ -971,9 +1058,15 @@ const AppContent = () => {
                   </div>
                 </div>
               )
+            ) : hash === '#seeker' ? (
+              <JobSeekerDashboard />
+            ) : hash === '#employer' ? (
+              <EmployerDashboard />
             ) : hash.startsWith('#job/') ? (
               <JobDescription />
-            ) : ['company', 'recruiter', 'staffingFirm'].includes(appUser?.accountType || '') ? (
+            ) : (user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1' || appUser?.accountType === 'admin') ? (
+              <AdminPanel />
+            ) : (['company', 'recruiter', 'staffingFirm', 'companyOwner'].includes(appUser?.accountType || '')) ? (
               <EmployerDashboard />
             ) : (
               <JobSeekerDashboard />

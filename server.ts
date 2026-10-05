@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, collectionGroup, query, where, getDocs } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
+import * as pdfParseModule from 'pdf-parse';
+const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
 // Load config from json. This is naive but works for the mock
 import * as fs from 'fs';
@@ -16,15 +18,22 @@ const db = firebaseApp ? getFirestore(firebaseApp, firebaseConfig.firestoreDatab
 
 dotenv.config();
 
-// Create Gemini Client
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ 
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build'
+// Dynamic Gemini Client Resolver supporting custom user API keys
+function getAiClient(customKey?: string): GoogleGenAI | null {
+  const key = customKey?.trim() || process.env.GEMINI_API_KEY;
+  if (!key) return null;
+  return new GoogleGenAI({ 
+    apiKey: key,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build'
+      }
     }
-  }
-}) : null;
+  });
+}
+
+const defaultAi = getAiClient();
+const ai = defaultAi;
 
 async function startServer() {
   const app = express();
@@ -133,9 +142,10 @@ async function startServer() {
   // Resume Parsing Logic with 3-Tier Prompt Matrix
   app.post('/api/parse-resume', async (req, res) => {
     try {
-      const { fileName = '', fileContent = '', useAI = false, promptVersion = 'v1' } = req.body;
-      const text = String(fileContent);
+      const { fileName = '', fileContent = '', fileType = 'text/plain', useAI = false, promptVersion = 'v1' } = req.body;
+      const isPdf = fileType === 'application/pdf';
       const safeFileName = String(fileName);
+      const text = isPdf ? "" : String(fileContent);
 
       // Determine active tier: if useAI is true and promptVersion is v1, upgrade to v2
       const activeTier = (useAI && promptVersion === 'v1') ? 'v2' : promptVersion;
@@ -155,20 +165,33 @@ Required JSON Schema:
   "skills": [ { "name": "Skill Name", "domain": "Technical | Soft Skills | Leadership | Domain Knowledge | Tools", "level": "Expert | Advanced | Intermediate", "years": 5 } ],
   "workExperience": [ { "role": "", "company": "", "startDate": "", "endDate": "", "description": "STAR bullet points showing measurable business outcomes." } ],
   "education": [],
-  "strategicHighlights": ["Key differentiator 1", "Key differentiator 2", "Key differentiator 3"]
-}
+  "strategicHighlights": ["Key differentiator 1", "Key differentiator 2", "Key differentiator 3"],
+  "volunteer_leadership": [ { "role": "", "organization": "", "dates": "", "description": "", "key_contributions": [] } ],
+  "personal_insights": { "superpowers": [], "value_system": [], "career_milestone_target": "" },
+  "accommodations_request": { "narrative": "", "sourcing_and_recruitment": "", "interview_format": "", "onboarding_and_integration": "" },
+  "working_style_preferences": { "focus_hours": "", "collaboration_style": "", "communication_style": "" }
+}`;
 
-Resume Text:
-${text.substring(0, 6000)}`;
+          let response;
+          if (isPdf) {
+            response = await ai.models.generateContent({
+              model: 'gemini-2.0-flash',
+              contents: [
+                { role: 'user', parts: [{ text: promptV3 }, { inlineData: { data: fileContent, mimeType: 'application/pdf' } }] }
+              ],
+              config: { responseMimeType: 'application/json' }
+            });
+          } else {
+            response = await ai.models.generateContent({
+              model: 'gemini-2.0-flash',
+              contents: `${promptV3}\n\nResume Text:\n${String(fileContent).substring(0, 6000)}`,
+              config: { responseMimeType: 'application/json' }
+            });
+          }
 
-          const response = await ai.models.generateContent({
-            model: 'gemini-3.8-flash',
-            contents: promptV3,
-            config: { responseMimeType: 'application/json' }
-          });
           const content = response.text || "{}";
           const parsedData = JSON.parse(content);
-          return res.json({ ...parsedData, promptVersion: 'v3', isAiEnhanced: true });
+          return res.json({ ...parsedData, extractedText: isPdf ? "[PDF Document]" : text, promptVersion: 'v3', isAiEnhanced: true });
         } catch (e: any) {
           console.warn("V3 Executive AI parsing failed, falling back to V2/heuristic:", e?.message || e);
         }
@@ -185,25 +208,41 @@ JSON Schema required:
   "targetRole": "",
   "skills": [ { "name": "Skill 1", "domain": "Technical | Soft Skills | Leadership | Domain Knowledge | Tools", "level": "Intermediate", "years": 3 } ],
   "workExperience": [ { "role": "", "company": "", "startDate": "", "endDate": "", "description": "" } ],
-  "education": []
-}
-Resume text:
-${text.substring(0, 5000)}`;
+  "education": [],
+  "volunteer_leadership": [ { "role": "", "organization": "", "dates": "", "description": "", "key_contributions": [] } ],
+  "personal_insights": { "superpowers": [], "value_system": [], "career_milestone_target": "" },
+  "accommodations_request": { "narrative": "", "sourcing_and_recruitment": "", "interview_format": "", "onboarding_and_integration": "" },
+  "working_style_preferences": { "focus_hours": "", "collaboration_style": "", "communication_style": "" }
+}`;
           
-          const response = await ai.models.generateContent({
-             model: 'gemini-3.8-flash',
-             contents: promptV2,
-             config: { responseMimeType: 'application/json' }
-          });
+          let response;
+          if (isPdf) {
+            response = await ai.models.generateContent({
+              model: 'gemini-2.0-flash',
+              contents: [
+                { role: 'user', parts: [{ text: promptV2 }, { inlineData: { data: fileContent, mimeType: 'application/pdf' } }] }
+              ],
+              config: { responseMimeType: 'application/json' }
+            });
+          } else {
+            response = await ai.models.generateContent({
+              model: 'gemini-2.0-flash',
+              contents: `${promptV2}\n\nResume text:\n${String(fileContent).substring(0, 5000)}`,
+              config: { responseMimeType: 'application/json' }
+            });
+          }
+
           const content = response.text || "{}";
           const parsedData = JSON.parse(content);
-          return res.json({ ...parsedData, promptVersion: 'v2', isAiEnhanced: true });
+          return res.json({ ...parsedData, extractedText: isPdf ? "[PDF Document]" : text, promptVersion: 'v2', isAiEnhanced: true });
         } catch (e: any) {
           console.warn("V2 AI parsing unavailable, falling back to algorithmic extraction:", e?.message || e);
         }
       }
 
       // Tier V1: Algorithmic Parsing (Fast Baseline)
+      // For V1, if it's a PDF, we can't easily parse it without a local PDF library, 
+      // so we suggest AI tiers or basic filename extraction
       const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
       const phoneMatch = text.match(/(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
       
@@ -801,12 +840,165 @@ Return ONLY valid JSON.`;
     return jobData;
   }
 
-  // Job Ingestion Pipeline Endpoint with 3-Tier Prompt Matrix
+  // Specialized Dice & Recruiter Outreach Email Parser
+  function diceEmailNlpParse(text: string, url?: string): IngestedJobData {
+    const jobData = localNlpParse(text, url);
+    const normalized = text || '';
+    const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
+
+    // 1. Recruiter Info Extraction
+    const recruiterInfo: any = {};
+
+    // A. Recruiter Name & Introduction
+    const introMatch = normalized.match(/(?:this side|my name is|this is|i am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/i);
+    const sigNameMatch = normalized.match(/(?:thanks\s*&?\s*regards|best\s*regards|sincerely|regards)[,\s\n]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+    const topSenderMatch = normalized.match(/(?:DR|NP)\s*\n?([A-Z][a-z]+\s+[A-Z][a-z]+)/);
+
+    let extractedName = '';
+    if (sigNameMatch && sigNameMatch[1] && sigNameMatch[1].trim().split(/\s+/).length > 1) {
+      extractedName = sigNameMatch[1].trim();
+    } else if (topSenderMatch && topSenderMatch[1]) {
+      extractedName = topSenderMatch[1].trim();
+    } else if (introMatch && introMatch[1]) {
+      const clean = introMatch[1].replace(/\b(?:working|at|with|from|and|an?|the|here)\b.*$/i, '').trim();
+      if (clean && !['Hello', 'Hope', 'Chris', 'Devops'].includes(clean)) {
+        extractedName = clean;
+      }
+    } else if (sigNameMatch && sigNameMatch[1]) {
+      extractedName = sigNameMatch[1].trim();
+    }
+
+    if (extractedName) {
+      recruiterInfo.name = extractedName;
+    }
+
+    // B. Direct Recruiter Email
+    const allEmails = normalized.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    const directCompanyEmail = allEmails.find(e => !e.includes('dice.com') && !e.includes('me.com') && !e.includes('example.com'));
+    const diceProxyEmail = allEmails.find(e => e.includes('dice.com'));
+    
+    if (directCompanyEmail) {
+      recruiterInfo.email = directCompanyEmail;
+    } else if (diceProxyEmail) {
+      recruiterInfo.email = diceProxyEmail;
+    }
+
+    // C. Phone / Mobile / Desk
+    const mobileMatch = normalized.match(/mobile\s*:\s*(\+?[\d\s-]{10,18})/i);
+    const deskMatch = normalized.match(/(?:desk|phone|tel)\s*:\s*(\+?[\d\s-xX.]{10,25})/i);
+    const generalPhoneMatch = normalized.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:\s*(?:x|ext\.?)\s*\d+)?/i);
+
+    if (mobileMatch) {
+      recruiterInfo.phone = mobileMatch[1].trim();
+    } else if (deskMatch) {
+      recruiterInfo.phone = deskMatch[1].trim();
+    } else if (generalPhoneMatch) {
+      recruiterInfo.phone = generalPhoneMatch[0].trim();
+    }
+
+    // D. Staffing Agency / Firm Name & Website
+    const firmMatch = normalized.match(/(?:at|with|working at|recruiter with)\s+([A-Z][A-Za-z0-9\s]{2,30}?)(?:\.|\,|\n|for fortune|\;)/i);
+    const sigFirmMatch = normalized.match(/(?:Tekfortune Inc|Applab Systems Inc|Sibitalent|Intone|Tekfortune|Applab Systems)/i);
+    const webMatch = normalized.match(/www\.([a-zA-Z0-9-]+\.(?:com|net|org|io|tech))/i);
+
+    if (sigFirmMatch) {
+      recruiterInfo.firmName = sigFirmMatch[0].trim();
+    } else if (firmMatch && firmMatch[1] && !['a', 'the', 'our', 'fortune', 'one'].includes(firmMatch[1].toLowerCase())) {
+      recruiterInfo.firmName = firmMatch[1].trim();
+    } else if (webMatch) {
+      recruiterInfo.firmName = webMatch[1].split('.')[0].toUpperCase();
+    }
+
+    if (recruiterInfo.firmName && normalized.includes(`${recruiterInfo.firmName} Inc`)) {
+      recruiterInfo.firmName = `${recruiterInfo.firmName} Inc`;
+    }
+    if (webMatch) recruiterInfo.firmWebsite = `https://www.${webMatch[1]}`;
+
+    // E. Client Name
+    const clientMatch = normalized.match(/Client\s*:\s*([^\n]+)/i);
+    if (clientMatch) {
+      recruiterInfo.clientName = clientMatch[1].replace(/USC\/GC.*$/i, '').trim();
+    }
+
+    // F. Contract / Work Auth Type
+    const w2Match = normalized.match(/\b(w2|c2c|1099|corp to corp|contract|fulltime only|full-time)\b/i);
+    if (w2Match) recruiterInfo.contractType = w2Match[0].toUpperCase();
+
+    const authMatch = normalized.match(/Work Auth\s*:\s*([^\n]+)/i) || normalized.match(/\b(USC\/GC Only|USC|Green Card|GC Only|Citizens Only)\b/i);
+    if (authMatch) recruiterInfo.workAuth = authMatch[1] ? authMatch[1].trim() : authMatch[0].trim();
+
+    // 2. Specific Job Title Extraction
+    const explicitRoleMatch = normalized.match(/(?:Role|Job Title|Title)\s*[:–-]+\s*([^\n]+)/i);
+    const urgentHiringMatch = normalized.match(/(?:Urgent Hiring|Hiring for)\s+([^|\n]+?)(?:\|\||–|-|\n|\(Onsite\))/i);
+    const subjectLineMatch = lines.find(l => (l.includes('Engineer') || l.includes('Developer') || l.includes('Manager') || l.includes('Specialist')) && l.length < 80);
+
+    if (explicitRoleMatch) {
+      jobData.title = explicitRoleMatch[1]
+        .replace(/^[^a-zA-Z0-9]+/, '')
+        .replace(/–\s*Fulltime only/i, '')
+        .replace(/\(Medical Devices\)/i, 'Medical Devices')
+        .replace(/\|\|.*$/g, '')
+        .trim();
+    } else if (urgentHiringMatch) {
+      jobData.title = urgentHiringMatch[1].replace(/^[^a-zA-Z0-9]+/, '').trim();
+    } else if (subjectLineMatch) {
+      jobData.title = subjectLineMatch.replace(/^.*?(?:Urgent Hiring|Full Time \|\||Job)\s*/i, '').replace(/\|\|.*$/, '').trim();
+    }
+
+    // 3. Location Extraction
+    const locMatch = normalized.match(/Location\s*[:-–]\s*([^\n]+)/i);
+    if (locMatch) {
+      jobData.location = locMatch[1].replace(/\(Onsite\)|\(Remote\)/i, '').trim();
+    }
+
+    // 4. Workplace Type
+    if (/remote/i.test(normalized) && !/onsite/i.test(normalized.substring(0, 200))) {
+      jobData.workplaceType = 'Remote';
+    } else if (/hybrid/i.test(normalized)) {
+      jobData.workplaceType = 'Hybrid';
+    } else if (/onsite|on-site/i.test(normalized)) {
+      jobData.workplaceType = 'On-Site';
+    }
+
+    // 5. Salary / Compensation Extraction
+    const salaryMatch = normalized.match(/Salary\s*:\s*\$?([0-9]{2,3})[kK]?\s*\/?\s*(?:Annum|Year|hr|hour)?/i);
+    const rateMatch = normalized.match(/\$?([0-9]{2,3})\s*\/\s*(?:hr|hour|c2c|w2)/i);
+    if (salaryMatch) {
+      const val = parseInt(salaryMatch[1]);
+      const annual = val < 1000 ? val * 1000 : val;
+      jobData.salaryMin = annual;
+      jobData.salaryMax = annual;
+      jobData.salaryType = 'Annual';
+    } else if (rateMatch) {
+      const hourly = parseInt(rateMatch[1]);
+      jobData.salaryMin = hourly * 2080;
+      jobData.salaryMax = hourly * 2080;
+      jobData.salaryType = 'Hourly';
+    }
+
+    // 6. Set Company Name to Staffing Agency or Client
+    if (recruiterInfo.firmName) {
+      jobData.companyName = recruiterInfo.firmName;
+    }
+    if (recruiterInfo.clientName && recruiterInfo.clientName !== jobData.companyName) {
+      jobData.companyName = `${jobData.companyName} (for ${recruiterInfo.clientName})`;
+    }
+
+    jobData.sourceBoard = 'Dice Recruiter Email';
+    (jobData as any).recruiterInfo = recruiterInfo;
+
+    return jobData;
+  }
+
+  // Job Ingestion Pipeline Endpoint with 3-Tier Prompt Matrix & PDF Multimodal Ingestion
   app.post('/api/ingest-job', async (req, res) => {
     try {
-      const { url, pastedText, boardType, promptVersion = 'v1', isRequisition = false, userSession } = req.body;
-      if (!url && (!pastedText || !pastedText.trim())) {
-        return res.status(400).json({ error: 'Either URL or Pasted Job Text is required' });
+      const { url, pastedText, fileContent, isPdf, fileName, boardType, promptVersion = 'v1', isRequisition = false, userSession, apiKey } = req.body;
+      const clientApiKey = (req.headers['x-gemini-api-key'] as string) || apiKey;
+      const activeAi = getAiClient(clientApiKey);
+
+      if (!url && (!pastedText || !pastedText.trim()) && (!isPdf || !fileContent)) {
+        return res.status(400).json({ error: 'Either URL, Pasted Job Text, or PDF upload is required' });
       }
 
       // RBAC Gate: Verify employer requisition authorization
@@ -820,12 +1012,123 @@ Return ONLY valid JSON.`;
         }
       }
 
+      // Multimodal Direct PDF Extraction via pdf-parse & Gemini
+      let extractedPdfText = '';
+      if (isPdf && fileContent) {
+        try {
+          const pdfBuffer = Buffer.from(fileContent, 'base64');
+          const pdfData = await pdfParse(pdfBuffer);
+          extractedPdfText = pdfData.text || '';
+        } catch (pdfParseErr) {
+          console.warn("pdf-parse text extraction warning:", pdfParseErr);
+        }
+
+        if (activeAi) {
+          try {
+            const pdfPrompt = `<role>
+You are an expert technical talent architect, recruiter intelligence analyst, and executive career coach.
+</role>
+
+<task>
+Parse the attached PDF document and extracted plain text below (which may be a Recruiter Reach-Out Email printout, Dice Private Email, GovernmentJobs listing, or standard job specification).
+Extract ALL metadata, recruiter contact details, salary, requirements, and insights into strict JSON.
+
+CRITICAL INSTRUCTIONS:
+- Extract ONLY ACTUAL real values from the document.
+- DO NOT return example or placeholder strings like "Job Title", "Position Title", "Staffing Firm, Employer, or Agency Name", or "undefined".
+- If a specific field is NOT present in the document, return null, empty string, or empty array instead of placeholders.
+</task>
+
+<extracted_text>
+${extractedPdfText.slice(0, 10000)}
+</extracted_text>
+
+<output_format>
+Return valid JSON matching this schema exactly:
+{
+  "title": "Actual Job Title from document",
+  "companyName": "Actual Employer or Agency Name",
+  "description": "Full formatted markdown description",
+  "requirements": "Full formatted markdown requirements and qualifications",
+  "location": "City, State or Remote",
+  "workplaceType": "Remote" | "Hybrid" | "On-Site",
+  "salaryMin": number or null,
+  "salaryMax": number or null,
+  "salaryType": "Annual" | "Hourly" | null,
+  "jobNumber": string or null,
+  "department": string or null,
+  "expiresAt": string or null,
+  "sourceBoard": "Dice Recruiter Email" | "GovernmentJobs / NEOGOV" | "Direct Employer",
+  "recruiterInfo": {
+    "name": "Recruiter Full Name or null",
+    "email": "Recruiter Direct Email or null",
+    "phone": "Recruiter Phone or null",
+    "firmName": "Staffing Agency Name or null",
+    "firmWebsite": "Agency Website or null",
+    "clientName": "End Client Name if specified or null",
+    "workAuth": "USC/GC Only or null",
+    "contractType": "W2" | "C2C" | "1099" | null
+  },
+  "requiredSkills": ["Skill 1", "Skill 2"],
+  "preferredSkills": ["Skill 3", "Skill 4"],
+  "benefits": ["Benefit 1", "Benefit 2"],
+  "insights": {
+    "interviewQuestions": [
+      { "question": "STAR Question 1?", "answer": "Model STAR response strategy." },
+      { "question": "STAR Question 2?", "answer": "Model STAR response strategy." }
+    ],
+    "unstatedExpectations": ["Unstated expectation 1", "Unstated expectation 2"],
+    "matchStrategy": "Strategic pitch and alignment recommendation."
+  }
+}`;
+
+            const pdfParts: any[] = [{ text: pdfPrompt }];
+            if (fileContent) {
+              pdfParts.push({ inlineData: { data: fileContent, mimeType: 'application/pdf' } });
+            }
+
+            const pdfResponse = await activeAi.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: [{ role: 'user', parts: pdfParts }],
+              config: { responseMimeType: 'application/json' }
+            });
+
+            const pdfResultText = pdfResponse.text || "{}";
+            const parsedPdfJob = JSON.parse(pdfResultText);
+            
+            // Validation Gate: Check if Gemini returned placeholders or valid data
+            const isPlaceholderTitle = !parsedPdfJob.title || 
+              ['job title', 'position title', 'actual job title from document', 'unknown role', 'undefined'].includes(parsedPdfJob.title.toLowerCase().trim());
+
+            if (!isPlaceholderTitle) {
+              if (!parsedPdfJob.sourceBoard) {
+                parsedPdfJob.sourceBoard = boardType === 'dice_email' ? 'Dice Recruiter Email' : (boardType === 'govjobs' ? 'GovernmentJobs / NEOGOV' : 'Direct Employer');
+              }
+
+              return res.json({
+                ...parsedPdfJob,
+                extractedId: `ingested-pdf-${Date.now()}`,
+                isAiEnhanced: true,
+                promptVersion: 'pdf_gemini'
+              });
+            } else {
+              console.warn("Gemini returned placeholder title for PDF. Falling back to local NLP on extracted PDF text.");
+            }
+          } catch (pdfErr: any) {
+            console.warn("AI PDF parsing encountered an issue, falling back to local NLP text parsing:", pdfErr?.message || pdfErr);
+          }
+        }
+      }
+
       // Fast, 100% accurate, zero-cost Local NLP Parser (Tier V1 Baseline)
-      const inputText = pastedText || `Job Link Import: We are seeking a qualified professional for this role. Review requirements and apply at ${url}`;
+      const inputText = (isPdf && extractedPdfText.trim() ? extractedPdfText : (pastedText || `Job Link Import: We are seeking a qualified professional for this role. Review requirements and apply at ${url}`));
       
       let jobData: IngestedJobData;
-      if (boardType === 'govjobs' || inputText.includes('powered by NEOGOV')) {
+      if (boardType === 'dice_email' || boardType === 'dice' || inputText.includes('Dice Private Email') || inputText.includes('user.dice.com') || inputText.includes('recruiter.dice.com')) {
+        jobData = diceEmailNlpParse(inputText, url);
+      } else if (boardType === 'govjobs' || inputText.includes('powered by NEOGOV') || inputText.includes('GovernmentJobs.com') || inputText.includes('Job Number:')) {
         jobData = govJobsNlpParse(inputText, url);
+        jobData.sourceBoard = 'GovernmentJobs / NEOGOV';
       } else if (boardType === 'linkedin' || (url && url.includes('linkedin.com'))) {
         jobData = localNlpParse(inputText, url);
         jobData.sourceBoard = 'LinkedIn';
@@ -844,27 +1147,51 @@ Return ONLY valid JSON.`;
         jobData = localNlpParse(inputText, url);
       }
 
-      // Tier V3: Strategic Executive Intelligence & Copilot Insights
-      if (promptVersion === 'v3' && ai) {
-        try {
-          const promptV3 = `You are an elite executive career coach and technical talent advisor.
-Perform an advanced Strategic Executive Tier-3 analysis on this job posting.
-Extract behavioral STAR interview questions with model answers, unstated hiring manager expectations, and personalized pitch advice.
+      // Add poster firm details from session if available
+      if (userSession?.staffingFirmName) {
+        (jobData as any).posterFirmName = userSession.staffingFirmName;
+        (jobData as any).posterFirmId = userSession.staffingFirmId || userSession.uid;
+      } else if (jobData.sourceBoard === 'GovernmentJobs / NEOGOV') {
+        // If it's a bridge import but no firm session, we might want to flag it as such
+        (jobData as any).posterFirmName = 'Ascend GovBridge';
+      }
 
-Job Context:
+      // Tier V3: Strategic Executive Intelligence & Copilot Insights
+      if (promptVersion === 'v3' && activeAi) {
+        try {
+          const promptV3 = `<role>
+You are an elite executive career coach and technical talent advisor.
+</role>
+
+<task>
+Perform an advanced Strategic Executive Tier-3 analysis on this job posting context.
+Extract behavioral STAR interview questions with model answers, unstated hiring manager expectations, and personalized pitch advice.
+</task>
+
+<constraints>
+- Extract ONLY what is explicitly stated or logically inferred from the provided context.
+- If a salary field is absent, return null.
+- If a skill is mentioned as preferred, move it to preferredSkills.
+- Maintain high-fidelity grounding; do NOT hallucinate facts about the company.
+</constraints>
+
+<job_context>
 Title: ${jobData.title}
 Company: ${jobData.companyName}
 Workplace: ${jobData.workplaceType}
 Location: ${jobData.location}
 Salary: $${jobData.salaryMin} - $${jobData.salaryMax}
 Skills: ${JSON.stringify(jobData.requiredSkills)}
-Description:
+
+DESCRIPTION:
 ${jobData.description}
 
-Requirements:
+REQUIREMENTS:
 ${jobData.requirements}
+</job_context>
 
-Return valid JSON matching this schema exactly:
+<output_format>
+Return valid JSON matching this schema exactly. No markdown, no explanations.
 {
   "title": "Refined Job Title",
   "companyName": "Refined Company Name",
@@ -872,8 +1199,8 @@ Return valid JSON matching this schema exactly:
   "requirements": "Explicit requirements in clean markdown",
   "location": "Location",
   "workplaceType": "Remote" | "Hybrid" | "On-Site",
-  "salaryMin": 0,
-  "salaryMax": 0,
+  "salaryMin": number or null,
+  "salaryMax": number or null,
   "requiredSkills": ["Skill 1", "Skill 2"],
   "preferredSkills": ["Skill 3", "Skill 4"],
   "benefits": ["Benefit 1", "Benefit 2"],
@@ -887,9 +1214,9 @@ Return valid JSON matching this schema exactly:
     "unstatedExpectations": ["Unstated expectation 1", "Unstated expectation 2", "Unstated expectation 3"],
     "matchStrategy": "Strategic pitch and alignment recommendation."
   }
-}`;
+}</output_format>`;
 
-          const response = await ai.models.generateContent({
+          const response = await activeAi.models.generateContent({
             model: 'gemini-3.8-flash',
             contents: promptV3,
             config: { responseMimeType: 'application/json' }
@@ -909,26 +1236,41 @@ Return valid JSON matching this schema exactly:
       }
 
       // Tier V2: Deep Semantic Taxonomy & Skill Normalization
-      if (promptVersion === 'v2' && ai) {
+      if (promptVersion === 'v2' && activeAi) {
         try {
-          const promptV2 = `You are an expert talent taxonomist.
+          const promptV2 = `<role>
+You are an expert talent taxonomist.
+</role>
+
+<task>
 Normalize this job posting with standardized skill taxonomy and explicit qualification splitting.
 Categorize skills into technical and soft domains, extract standard workplace perks, and normalize compensation.
+</task>
 
-Job Context:
+<constraints>
+- Extract ONLY what is explicitly stated in the context.
+- If a salary field is absent, return null.
+- Convert hourly to annual using 2080 hours ONLY if "hourly" is explicitly stated.
+- Separate skills into required vs preferred based on language like "must have" vs "nice to have".
+</constraints>
+
+<job_context>
 Title: ${jobData.title}
 Company: ${jobData.companyName}
 Workplace: ${jobData.workplaceType}
 Location: ${jobData.location}
 Salary: $${jobData.salaryMin} - $${jobData.salaryMax}
 Skills: ${JSON.stringify(jobData.requiredSkills)}
-Description:
+
+DESCRIPTION:
 ${jobData.description}
 
-Requirements:
+REQUIREMENTS:
 ${jobData.requirements}
+</job_context>
 
-Return valid JSON matching this schema:
+<output_format>
+Return valid JSON matching this schema exactly. No markdown, no explanations.
 {
   "title": "Refined Job Title",
   "companyName": "Refined Company Name",
@@ -936,14 +1278,14 @@ Return valid JSON matching this schema:
   "requirements": "Explicit requirements in clean markdown",
   "location": "Location",
   "workplaceType": "Remote" | "Hybrid" | "On-Site",
-  "salaryMin": 0,
-  "salaryMax": 0,
+  "salaryMin": number or null,
+  "salaryMax": number or null,
   "requiredSkills": ["Skill 1", "Skill 2"],
   "preferredSkills": ["Skill 3", "Skill 4"],
   "benefits": ["Benefit 1", "Benefit 2"]
-}`;
+}</output_format>`;
 
-          const response = await ai.models.generateContent({
+          const response = await activeAi.models.generateContent({
             model: 'gemini-3.8-flash',
             contents: promptV2,
             config: { responseMimeType: 'application/json' }
@@ -992,12 +1334,15 @@ Return valid JSON matching this schema:
   // AI-Powered Deep Enhancement Second-Pass Endpoint
   app.post('/api/ingest-job/enhance', async (req, res) => {
     try {
-      const { job } = req.body;
+      const { job, apiKey } = req.body;
+      const clientApiKey = (req.headers['x-gemini-api-key'] as string) || apiKey;
+      const activeAi = getAiClient(clientApiKey);
+
       if (!job) {
         return res.status(400).json({ error: 'Job details are required' });
       }
 
-      if (ai) {
+      if (activeAi) {
         const prompt = `You are an expert executive career coach and technical talent advisor.
 You are performing a DEEP AI SECOND-PASS analysis on this job posting.
 We have already parsed standard details using local heuristics, but we need high-fidelity, advanced strategic insights.
@@ -1040,8 +1385,8 @@ Perform a deep scan and return a valid JSON object matching this schema exactly:
   }
 }`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+        const response = await activeAi.models.generateContent({
+          model: 'gemini-2.5-flash',
           contents: prompt,
           config: {
             responseMimeType: 'application/json',
@@ -1055,7 +1400,7 @@ Perform a deep scan and return a valid JSON object matching this schema exactly:
           isAiEnhanced: true
         });
       } else {
-        return res.status(400).json({ error: 'Gemini AI is not configured on this workspace' });
+        return res.status(400).json({ error: 'Gemini AI API key is not configured. Please supply your API key or configure GEMINI_API_KEY.' });
       }
     } catch (error: any) {
       console.error('Job Enhancement Error:', error);
@@ -1066,12 +1411,15 @@ Perform a deep scan and return a valid JSON object matching this schema exactly:
   // Copilot Interactive Chat Endpoint
   app.post('/api/ingest-job/chat', async (req, res) => {
     try {
-      const { messages, job, profile } = req.body;
+      const { messages, job, profile, apiKey } = req.body;
+      const clientApiKey = (req.headers['x-gemini-api-key'] as string) || apiKey;
+      const activeAi = getAiClient(clientApiKey);
+
       if (!messages || !job) {
         return res.status(400).json({ error: 'Messages and job are required' });
       }
 
-      if (ai) {
+      if (activeAi) {
         const chatHistory = messages.map((m: any) => ({
           role: m.sender === 'user' ? 'user' : 'model',
           parts: [{ text: m.text }]
@@ -1095,8 +1443,8 @@ Experience: ${JSON.stringify(profile?.workExperience || [])}
 
 Provide objective, high-value, and direct career advice. Help them break down requirements, evaluate fit, find hidden challenges, and understand what the company is truly looking for. Keep your tone encouraging, objective, and professional. Avoid fluffy filler. Respond in clean Markdown.`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+        const response = await activeAi.models.generateContent({
+          model: 'gemini-2.5-flash',
           contents: [
             ...chatHistory.slice(0, -1),
             { role: 'user', parts: [{ text: messages[messages.length - 1].text }] }
@@ -1109,7 +1457,7 @@ Provide objective, high-value, and direct career advice. Help them break down re
         return res.json({ text: response.text || 'I apologize, I am unable to process that request.' });
       }
 
-      return res.json({ text: "Ascend Copilot is currently offline. Please try again." });
+      return res.json({ text: "Ascend Copilot is currently offline. Please configure your API key to activate AI Copilot features." });
     } catch (error: any) {
       console.error('Job Chat Error:', error);
       res.status(500).json({ error: 'Failed to generate chat response: ' + error.message });
@@ -1119,12 +1467,15 @@ Provide objective, high-value, and direct career advice. Help them break down re
   // Tailored Resume Generator Endpoint
   app.post('/api/tailor-resume', async (req, res) => {
     try {
-      const { job, profile } = req.body;
+      const { job, profile, apiKey } = req.body;
+      const clientApiKey = (req.headers['x-gemini-api-key'] as string) || apiKey;
+      const activeAi = getAiClient(clientApiKey);
+
       if (!job || !profile) {
         return res.status(400).json({ error: 'Job and Profile are required' });
       }
 
-      if (ai) {
+      if (activeAi) {
         const prompt = `You are an expert resume writer and recruiter.
 Analyze this job posting:
 Job Title: ${job.title}
@@ -1167,8 +1518,8 @@ Return a valid JSON matching this schema exactly:
   ]
 }`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+        const response = await activeAi.models.generateContent({
+          model: 'gemini-2.5-flash',
           contents: prompt,
           config: {
             responseMimeType: 'application/json'

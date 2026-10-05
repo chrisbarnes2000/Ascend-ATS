@@ -274,6 +274,9 @@ export const CompanyProfileView = () => {
                 <Building className="w-8 h-8" />
               </div>
               <div>
+                <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-2 border border-indigo-100 dark:border-indigo-900">
+                   <Users className="w-3.5 h-3.5" /> Recruiting Organization
+                </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">{companyName}</h1>
                   <span className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40 px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1">

@@ -4,6 +4,393 @@ This internal engineering log records granular development actions, architecture
 
 ---
 
+## [0.5.27-dev.16] - 2026-10-04
+### Refactored & Hardened (ITIL Service Transition - AdminPanel Modular Subcomponent Decomposition)
+- **Monolithic Admin Panel Refactoring (`src/pages/AdminPanel.tsx` -> `src/components/admin/`)**:
+  - Decomposed 1,904-line monolithic `AdminPanel.tsx` into 8 modular, single-responsibility subcomponents complying with NASA JPL Power of 10 Rule 4 (max ~60 lines logic per component):
+    - `src/components/admin/adminMockData.ts`: Extracted mock job sets (`sampleJobSets`) and company metadata (`companiesDetails`).
+    - `src/components/admin/AdminHeaderStats.tsx`: Executive telemetry cards & deep company sync control.
+    - `src/components/admin/AdminDataSeedingTab.tsx`: Industry sampler & bulk data injection engine.
+    - `src/components/admin/AdminInvitationsTab.tsx`: Partner token generator, active tokens table & email dispatch modal.
+    - `src/components/admin/AdminPartnerRequestsTab.tsx`: Inbound access request CRM & conversion workflow.
+    - `src/components/admin/AdminRecruiterLeadsTab.tsx`: Auto-discovered recruiter leads table & outreach actions.
+    - `src/components/admin/AdminSecurityTab.tsx`: Audit logs, database pruning & maintenance actions.
+    - `src/components/admin/AdminConfirmationModal.tsx`: Reusable destructive action modal.
+  - Refactored `AdminPanel.tsx` into a lightweight orchestrator page container (<300 lines).
+- **Documentation & Structure Sync**:
+  - Updated `Docs/STRUCTURE.md` documenting the new `src/components/admin/` module directory.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across 9 unit test suites.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.15] - 2026-10-04
+### Fixed & Enhanced (ITIL Service Transition - Inbound Recruiter Lead Auto-Discovery & Admin Referral Sync)
+- **Admin Panel Lead Auto-Discovery Sync (`src/pages/AdminPanel.tsx`)**:
+  - *Root Cause Analysis*: Recruiter details parsed in candidate pipeline cards were written to `recruiter_leads`, but `AdminPanel.tsx` only fetched `recruiter_leads` on manual tab navigation to `adminMode === 'leads'`. Furthermore, any jobs ingested without an explicit lead document (or from prior sessions) were missed in the referral UI.
+  - *Fix*: Upgraded `fetchLeads()` in `AdminPanel.tsx` with a deep auto-discovery crawler across canonical `jobs` and `collectionGroup(db, 'ingestedJobs')`. Any parsed job containing `recruiterInfo` or `posterFirmName` is automatically converted into a lead payload and backfilled into `recruiter_leads`.
+  - Configured `useEffect` in `AdminPanel.tsx` to automatically trigger `fetchLeads()`, `fetchInvitations()`, and `fetchRequests()` on view mount, ensuring live counter updates in the header.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across 9 unit test suites.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.14] - 2026-10-04
+### Fixed & Unified (ITIL Service Transition - Pipeline Tracker & Top Matches Score Alignment)
+- **Pipeline Tracker Match Score Algorithm Alignment (`src/components/tracker/JobTracker.tsx`)**:
+  - *Root Cause Analysis*: Pipeline cards in `JobTracker.tsx` previously calculated match badges by displaying only raw required skills ratio (`matchedCount / totalRequired`), while passing an incomplete job object stub. This resulted in cards showing 0% or 20% match even when candidates were high overall fits across compensation, experience, and title.
+  - *Fix*: Updated `JobTracker.tsx` to pass complete job object specifications (including title, description, requirements, salary range, workplace type, and skills) into `getMatchBreakdown(profile, job)` and rendered the holistic **`breakdown.overallScore`** (0 – 100%).
+  - Added color-coded match badge styling (`>=85%` Emerald, `>=70%` Indigo, `>=50%` Amber) matching the "Top Matches" section in the Job Seeker Dashboard.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across 9 unit test suites.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.13] - 2026-10-04
+### Fixed & Enhanced (ITIL Emergency Change - Multimodal PDF Text Extraction & Validation Gate)
+- **PDF Extraction Pipeline Overhaul (`server.ts`, `package.json`)**:
+  - *Root Cause*: When a PDF was ingested without a Gemini key or when Gemini model returned example schema strings, the system outputted placeholder text like `"Position Title"`, `"Job Title"`, or `"undefined"`.
+  - *Fix*: Integrated `pdf-parse` for server-side PDF plain-text extraction (`pdfParse(Buffer.from(fileContent, 'base64'))`).
+  - Added strict Gemini validation gate: if Gemini PDF output contains placeholder titles (`"Position Title"`, `"Job Title"`, `"undefined"`), the system automatically rejects the placeholder output and routes the extracted plain text into our specialized `diceEmailNlpParse` / `govJobsNlpParse` / `localNlpParse` engines.
+  - Upgraded multimodal PDF Gemini extraction model to `gemini-2.5-flash` with explicit instructions against returning example strings.
+- **Safety-Critical Unit Test Suite (`tests/unit/pdfParser.test.ts`, `tests/runAllTests.ts`)**:
+  - Added `runPdfParserValidationTests` verifying placeholder title detection and validation gate invariants.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across 9 unit test suites.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.12] - 2026-10-04
+### Enhanced & Fixed (ITIL Service Transition - Client-Side AI Key Management, Canonical Job Mirroring, & Outreach Inspector Parity)
+- **Client-Side Gemini API Key Management (`src/components/tracker/JobTracker.tsx`, `server.ts`)**:
+  - Implemented persistent browser-based API key state (`localStorage` key `ascend_user_gemini_api_key`) and an interactive modal dialog ("Configure Custom AI Key") in the Candidate Ingestion header.
+  - Configured all candidate AI triggers (`/api/ingest-job`, `/api/ingest-job/enhance`, `/api/ingest-job/chat`, `/api/tailor-resume`) to send custom API keys via request header `x-gemini-api-key` and body `apiKey`.
+  - Updated server endpoints in `server.ts` to dynamically resolve `getAiClient(clientApiKey)` with fallback to default system key.
+- **Canonical Job Post Synchronization & Recruiter Parity (`src/components/tracker/JobTracker.tsx`)**:
+  - Automatically mirrors candidate-ingested job postings directly to the global canonical `jobs/{jobDocId}` collection alongside `users/{uid}/ingestedJobs/{jobDocId}`, creating full recruiter-equivalent schema parity with structured `parsedCriteria` (skills, requiredSkills, preferredSkills, minExperience, salaryRange, workplaceType, location, benefits).
+  - Automatically extracts and registers discovered recruiter leads into `recruiter_leads` collection for admin outreach CRM when recruiter email is present.
+- **Rich Candidate Job & Recruiter Outreach Inspector (`src/components/tracker/JobTracker.tsx`)**:
+  - Upgraded candidate job understanding drawer to full parity with employer imports, featuring:
+    - **Inbound Recruiter Outreach Card**: Direct recruiter name, agency, direct email, phone, end client, contract model (W2/C2C/1099), work authorization (USC/GC), and 1-click "Copy Email" / "Email Recruiter" actions.
+    - **Public Sector / GovJobs Inspector**: Requisition #, department/agency, civil service filing info, and hourly-to-annual pay scale translation.
+    - **Strategic Alignment & STAR Interview Copilot**: Match score breakdown, 4 STAR behavioral interview questions with model answers, unstated expectations, and interactive Copilot chat.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across all 8 test suites with zero failures.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.11] - 2026-10-04
+### Enhanced & Styled (ITIL Service Transition - Candidate Ingestion UI/UX & Engine Layout Overhaul)
+- **Candidate Job Description Ingestion UI/UX Layout Overhaul (`src/components/tracker/JobTracker.tsx`)**:
+  - Removed artificial narrow container width ceiling (`max-w-2xl` -> full responsive `w-full` layout), resolving cramped textareas and broken layouts across high-resolution displays.
+  - Replaced legacy text tabs with a high-contrast, responsive 4-column segmented control navigation bar with dedicated brand accents (`Job URL`, `Standard Job Text`, `GovJobs / NEOGOV`, and `Dice Outreach`).
+  - Redesigned PDF document upload bars across all ingestion modes with direct file status indicators, truncated paths, and 1-click removal triggers.
+  - Upgraded monospace textareas to full-width, clean shadow-inner formatting with increased vertical row capacity (8 rows) and anti-glare focus rings.
+  - Added dynamic loader indicators and explicit status messaging across all ingestion triggers.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across all 8 test suites with zero failures.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.10] - 2026-10-04
+### Fixed & Added (ITIL Emergency Change & Service Transition - Firestore Payload Sanitizer, PDF Ingestion, & Admin Outreach Sync)
+- **Root Cause Analysis (RCA) & Firestore Undefined Payload Sanitizer (`src/utils/firestoreSanitizer.ts`, `src/components/tracker/JobTracker.tsx`, `src/components/GovJobsBridge.tsx`)**:
+  - *Incident Root Cause*: When ingesting jobs with optional metadata (e.g. `canonicalUrl: undefined` or `recruiterInfo.phone: undefined`), calling Firestore `setDoc()` or `addDoc()` threw `Unsupported field value: undefined`.
+  - *Permanent Resolution*: Implemented `sanitizeFirestorePayload()` adhering to NASA JPL Rule #5 (High Assertion Density) and Rule #7 (Strict Return Value Checking) that deeply traverses objects and arrays to strip all `undefined` values while strictly preserving Firestore `FieldValue` sentinels (`serverTimestamp()`), `Timestamp`, `Date`, and clean `null` markers.
+- **Multimodal PDF Email & Specification Upload Support (`src/components/tracker/JobTracker.tsx`, `src/components/GovJobsBridge.tsx`, `server.ts`)**:
+  - Added PDF file upload support (drag & drop / file picker) across both Candidate Job Tracker and Employer/Recruiter GovJobs Bridge.
+  - Candidates and recruiters can now directly upload PDF exports of outreach emails and GovernmentJobs listings instead of having to copy and paste text.
+- **Automated Recruiter Leads Ingestion for Admin Outreach Portal (`src/components/tracker/JobTracker.tsx`, `src/components/GovJobsBridge.tsx`, `src/pages/AdminPanel.tsx`)**:
+  - Automatically captures parsed recruiter details (name, email, phone, staffing agency, client, sourced role) whenever a candidate or employer ingests an outreach email or GovJob.
+  - Writes sanitized records to the `recruiter_leads` collection in Firestore.
+  - Integrates seamlessly with the Admin Panel's *Recruiter Leads* CRM tab, allowing administrators to review incoming recruiter leads and issue 1-click partner invitations to the portal.
+- **Test Suite Expansion & Green Gate (`tests/unit/firestoreSanitizer.test.ts`, `tests/unit/recruiterLeads.test.ts`, `tests/runAllTests.ts`)**:
+  - Added 5 unit tests for Firestore payload sanitization (root stripping, nested object cleanup, sentinel preservation, array objects).
+  - Added unit tests for deterministic recruiter lead ID generation and outreach payload sanitization.
+  - Master test harness (`npm test`) verified 100% green across 8 test suites.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across all 8 test suites.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.09] - 2026-10-04
+### Added & Enhanced (ITIL Service Transition - Candidate GovJobs Import & Dual-Sided Dice Outreach Email Parser)
+- **Candidate Application Pipeline Ingestion Expansion (`src/components/tracker/JobTracker.tsx`, `src/types/index.ts`)**:
+  - Expanded candidate tracker ingestion pipeline with 4 dedicated, high-contrast modal modes:
+    1. *Import via Job URL* (LinkedIn, Indeed, Career Sites)
+    2. *Standard Job Text* (Direct job descriptions)
+    3. *GovJobs / NEOGOV* (GovernmentJobs.com, state boards, department hierarchies, closing dates, hourly-to-annual pay)
+    4. *Dice / Recruiter Reach-Out* (Inbound recruiter emails, Dice Private Emails, LinkedIn InMails)
+  - Added rich candidate cards and detail drawer views displaying recruiter outreach info, staffing agency names, direct recruiter emails/phones, contract terms (W2/C2C/1099), work authorization requirements, and public sector requisition metadata.
+- **Dual-Sided Dice Recruiter Outreach Parser (`server.ts`, `src/components/GovJobsBridge.tsx`)**:
+  - Authored `diceEmailNlpParse` in `server.ts` to automatically extract recruiter identity (name, email, mobile, desk extension), staffing agencies (Tekfortune, Applab Systems, Sibitalent, Intone, etc.), end clients (e.g., Wipro/Amazon), compensation, contract models, and technical skills from unstructured recruiter email reach-outs.
+  - Upgraded `GovJobsBridge.tsx` on the recruiter/employer workspace to support a dual-mode switch between *GovJobs / NEOGOV* and *Dice & Recruiter Reach-Out Bridge*, enabling staffing agencies and recruiters to ingest cold client emails into active ATS requisitions.
+- **Automated Test Suite Expansion (`tests/unit/diceEmailParser.test.ts`, `tests/runAllTests.ts`)**:
+  - Authored comprehensive test suite verifying 4 distinct Dice recruiter outreach email formats, validating title cleanup, recruiter identity extraction, staffing agency resolution, and work auth constraints.
+  - Wired into master test harness (`runDiceEmailParserTests`).
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across all 6 test suites (50/50 tests passing).
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.08] - 2026-10-04
+### Enhanced & Styled (ITIL Service Transition - Static Nav Bar & Tag Refinement)
+- **Navigation Bar Layout & Label Polish (`src/pages/EmployerDashboard.tsx`)**:
+  - Removed horizontal scrolling (`overflow-x-auto max-w-full`) from the recruitment workspace navigation container, switching to a responsive `flex-wrap` static layout.
+  - Removed the `+GovJobs` badge tag from the "Requisitions & Audits" button for clean, consistent label alignment across all workspace nav items.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.07] - 2026-10-04
+### Enhanced & Unified (ITIL Service Transition - Requisitions & GovJobs Strategic Bridge Consolidation)
+- **GovJobs Bridge & Requisition Editor Consolidation (`src/components/JobRequisitionEditor.tsx`, `src/pages/EmployerDashboard.tsx`, `src/components/GovJobsBridge.tsx`)**:
+  - In response to UI Focus Selection on Employer Workspace tabs, merged the standalone "GovJobs Bridge" tab into the "Requisitions & Audits" workspace.
+  - Upgraded `JobRequisitionEditor` sub-navigation to include a first-class `GovJobs Bridge` (`'govjobs'`) sub-tab with live NEOGOV ingestion, state mirroring, and immediate requisition list syncing upon import.
+  - Added quick `+GovJob` action button in the requisition management sidebar to expedite public sector imports without leaving the requisition workflow.
+  - Enhanced `GovJobsBridge.tsx` with `companyId`, `companyName`, and `onJobIngested` callback props, establishing tight cohesion between public sector ingestion and active company job boards.
+  - Updated `EmployerDashboard.tsx` tab bar with a unified high-contrast styled button (`Requisitions & Audits (+GovJobs)`) featuring dual iconography (`Edit3` and `Globe`) and verified active state indicator rings.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across all unit suites.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.06] - 2026-10-04
+### Added & Enhanced (ITIL Service Transition - Safety-Critical Deduplication, Validation & Merge Architecture)
+- **Identity & Role Governance (`src/utils/identityGovernance.ts`, `src/hooks/useAuth.tsx`, `src/types/index.ts`)**:
+  - Implemented `normalizeEmail` (lowercase, whitespace trim, plus-addressing preservation) integrated into `signUpWithEmail`, `signInWithEmail`, and Google OAuth.
+  - Implemented role-switch rate limiting via `checkRoleSwitchRateLimit` enforcing a maximum of 3 transitions per 24 hours per user.
+  - Implemented atomic profile archival via `generateArchiveProfilePath`: prior role profiles (`users/{uid}/profiles/{role}`) are cloned to `users/{uid}/profiles/archived/{role}_{timestamp}` with `archivedAt` timestamps prior to switching roles, eliminating silent data loss.
+- **Ingested Job Deduplication & Canonicalization (`src/utils/jobDedup.ts`, `src/components/tracker/JobTracker.tsx`)**:
+  - Implemented `canonicalizeJobUrl`: strips `www.`, strips tracking parameters (`utm_*`, `ref`, `fbclid`, etc.), preserves recognized job parameters (`jk`, `jobId`, `id`, `vjk`), and standardizes HTTPS protocol and trailing slashes.
+  - Implemented `JOB_ID_EXTRACTORS` for LinkedIn, Indeed, GovernmentJobs, Greenhouse, Lever, Ashby, and Workday.
+  - Replaced non-deterministic `Date.now()` doc IDs with 16-character deterministic FNV-1a hex hashes (`computeDeterministicHash`).
+  - Added 90-day retention TTL evaluation (`isJobStale`).
+  - Updated `JobTracker.tsx` to commit ingested jobs with `{ merge: true }`, updating `lastSeenAt` without duplicating or wiping candidate notes.
+- **Profile Deep Merge & Override Preservation (`src/utils/profileMerge.ts`, `src/pages/ProfileWizard.tsx`)**:
+  - Implemented `mergeProfileData` with deep state retention on resume re-upload:
+    - Retains 100% of user overrides: privacy levels, PII redaction, excluded employers, custom phone/location/pronouns, drag-and-drop section order, and DEI accommodations.
+    - `mergeSkills`: case-insensitive deduplication, metadata preservation, and experience level union.
+    - `mergeWorkExperience`: matches by company and role, preserving longer achievements and unioning skill tags.
+    - `mergeEducation`: matches by institution and degree without duplicate entries.
+- **Requisition Material Shift Engine (`src/utils/materialShiftEngine.ts`, `src/components/JobRequisitionEditor.tsx`, `src/config.ts`)**:
+  - Replaced hardcoded heuristics with centralized configuration (`STATIC_CONFIG.MATERIAL_SHIFT_THRESHOLDS`).
+  - Added detection for:
+    - Max salary drop (>5% drop = +40 points / `high_bait_and_switch`).
+    - Min salary drop (>10% drop = +25 points / `moderate`).
+    - Scope expansion (>20% requirements length increase = +15 points / `moderate`).
+    - Seniority title downgrades (e.g. Senior to Junior = +10 points / `high_bait_and_switch`).
+    - Workplace policy shifts (Remote ➔ On-site = +20 points / `high_bait_and_switch`).
+  - Implemented semantic versioning (`calculateSemanticVersion`): Patch (`v1.0.1`) for minor/typo edits, Minor (`v1.1.0`) for moderate shifts, Major (`v2.0.0`) for bait-and-switch shifts.
+- **JSON Profile Parser Normalization & Sanitization (`src/utils/jsonProfileParser.ts`)**:
+  - Implemented `normalizeSalary` supporting salary ranges (`$120K - $160K`), open-ended figures (`150K+`), single values (`$145,000`), and currency detection (USD, EUR, GBP, CAD).
+  - Added strict sanitization helpers (`sanitizeString`, `sanitizePhone`, `sanitizeNarrative`) stripping binary control characters.
+  - Enforced schema flavor precedence: Advanced Persona > Recruiter Profile > Simplified Resume > Legacy Format.
+- **Application Deduplication & Audit Firestore Rules (`firestore.rules`, `src/utils/applicationLifecycle.ts`)**:
+  - Created `getDeterministicApplicationId` (`${jobId}_${seekerId}`).
+  - Hardened `firestore.rules` for `/applications/{applicationId}` to reject duplicate applications at creation.
+  - Added write-once immutable `/audit_logs/{logId}` security rules.
+  - Deployed updated rules to Firebase.
+- **Comprehensive Automated Test Suite (`tests/unit/`, `tests/runAllTests.ts`, `package.json`)**:
+  - Authored unit test suites: `tests/unit/jobDedup.test.ts`, `tests/unit/profileMerge.test.ts`, `tests/unit/materialShiftEngine.test.ts`, `tests/unit/identityGovernance.test.ts`.
+  - Expanded `tests/unit/jsonProfileParser.test.ts` with salary normalization and sanitization tests.
+  - Created master harness `tests/runAllTests.ts` and wired to `npm test`.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across all 5 test suites.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.05] - 2026-10-04
+### Fixed & Enhanced (ITIL Service Transition - Launch Dashboard Navigation & Sticky Wizard Breadcrumbs)
+- **Launch Dashboard Navigation Resolution (`src/hooks/useAuth.tsx`, `src/App.tsx`, `src/pages/ProfileWizard.tsx`)**:
+  - Root Cause Analysis: `recheckProfileConfigured()` in `useAuth.tsx` did not refresh `appUser` in React state after Firestore `setDoc(userRef, { profileCompleted: true })`. This left `appUser.profileCompleted` as `false`, causing the root router in `App.tsx` (`!appUser?.profileCompleted ? <ProfileWizard />`) to indefinitely trap the user inside the wizard. Additionally, `App.tsx` had routed `#onboarding` completions to `#edit-profile` rather than the active dashboard `#seeker`.
+  - Resolution:
+    - Updated `recheckProfileConfigured()` to synchronize `appUser` state with fresh user document snapshot.
+    - Updated `ProfileWizard` completion callback in `App.tsx` to set `window.location.hash = '#seeker'`.
+    - Hardened `saveProfile()` in `ProfileWizard.tsx` with guaranteed hash navigation to `#seeker` and resilient try/catch recovery so the button never becomes unresponsive.
+    - Added high-contrast feedback states and loading indicators to the "Launch Dashboard" button.
+- **Sticky Progress Bar / Breadcrumbs (`src/pages/ProfileWizard.tsx`, `src/pages/CompanyWizard.tsx`)**:
+  - Upgraded wizard breadcrumbs container to `sticky top-16 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md` with refined borders, step badges, and labels.
+  - Ensures the progress indicator stays pinned right below the fixed top navigation bar throughout long scrollable sections (such as multi-entry Work Experience or Education steps).
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Clean build.
+
+---
+
+## [0.5.27-dev.04] - 2026-10-04
+### Added & Enhanced (ITIL Service Transition - Multi-Format JSON Profile Templates & Parser Architecture)
+- **Multi-Format JSON Profile Templates (`/public/templates/`, `/public/schemas/`)**:
+  - Implemented 3 standardized, production-ready downloadable JSON templates and schema specifications (v2026.10.04):
+    1. `/public/templates/resume-simplified-template.json`: Captures `contact`, `summary`, `work_experience`, `education`, `certifications`, `skills`, `domains`, `key_metrics`, and `optional` sections.
+    2. `/public/templates/resume-advanced-persona-template.json`: Deep portfolio persona structure capturing `persona.identity`, `persona.contact`, `persona.brand`, `persona.professional_identity`, `persona.ventures`, `persona.accommodations`, and `persona.skills`.
+    3. `/public/templates/recruiter-profile-template.json`: Recruiter profile template capturing `recruiter_info`, `organization`, `professional_bio`, `sourcing_specialties`, `active_focus_areas`, and `candidate_standards`.
+    4. Generated formal Draft-07 schemas in `/public/schemas/resume-simplified.schema.json` and `/public/schemas/recruiter-profile.schema.json`.
+- **Ingestion Engine Normalization (`src/utils/jsonProfileParser.ts`)**:
+  - Re-engineered `parseJsonProfile` to automatically detect schema flavor (`simplified`, `advanced_persona`, `recruiter`, `legacy`):
+    - Normalizes multi-tier skill arrays and nested objects into unified `ProfileSkill[]`.
+    - Normalizes work experience highlights and bullet points into comprehensive achievement narratives.
+    - Accurately parses compensation bounds and neurodivergent/ADA accommodations across all schemas.
+- **In-App Download & Upload UI (`src/components/JsonProfileUpload.tsx`, `src/pages/CompanyWizard.tsx`)**:
+  - Enhanced `JsonProfileUpload.tsx` with multi-format validation and an accessible 3-card template download panel with 1-click download triggers for Simplified, Advanced Persona, and Recruiter templates.
+  - Added an optional "Import from Recruiter Profile JSON" accordion trigger to `CompanyWizard.tsx` (Step 1) so recruiters can immediately populate company data, sourcing specialties, and narrative.
+- **Automated Invariant Unit Test Suite (`tests/unit/jsonProfileParser.test.ts`, `package.json`)**:
+  - Authored automated unit test suite verifying 100% parser fidelity across all three template files.
+  - Added `"test": "tsx tests/unit/jsonProfileParser.test.ts"` to `package.json`.
+- **Verification Gate**:
+  - `npm test`: 100% assertions satisfied across all 3 templates.
+  - `npm run lint` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Build succeeded cleanly.
+
+---
+
+## [0.5.27-dev.03] - 2026-10-03
+### Added & Enhanced (ITIL Service Transition - Sign-In Profile Verification & Setup Restart Prompt)
+- **Profile Integrity Verification Gate (`src/hooks/useAuth.tsx`)**:
+  - Implemented `checkProfileConfigured` inside `useAuth.tsx` to verify whether the required Firestore sub-document exists for the user's assigned `accountType` upon sign-in / session restoration:
+    - `jobSeeker`: verifies existence of `users/{uid}/profiles/main`.
+    - `recruiter`: verifies existence of `users/{uid}/profiles/recruiter`.
+    - `companyOwner` / `company`: verifies existence of `users/{uid}/profiles/company`.
+    - `admin` (Chris Barnes / admin UID / `admin` role): auto-exempted as platform administrator.
+  - Exposed `isProfileConfigured`, `profileCheckLoading`, `resetProfileSetup`, and `recheckProfileConfigured` via `AuthContextType`.
+  - Added `resetProfileSetup(newAccountType)` allowing users to cleanly restart setup with a newly chosen profile type (`jobSeeker`, `recruiter`, `companyOwner`), updating `users/{uid}` with `profileCompleted: false` and triggering re-validation.
+- **Dedicated Profile Setup & Restart Recovery UI (`src/components/profile/ProfileRestartPrompt.tsx`)**:
+  - Built an accessible (WCAG 2.1/2.2 AA compliant) recovery surface displayed when a signed-in user's profile is not yet configured or is in an inconsistent state:
+    - Primary Action: **"Configure as [Current Role]"** -> routes to `#onboarding` to complete the tailored wizard.
+    - Restart Action: **"Or Choose a Profile Type to Restart Setup"** -> 3 interactive role cards (`Job Seeker`, `Recruiter`, `Company Owner`) that reset the profile and immediately launch onboarding.
+    - Exit Action: **"Sign Out"** -> signs out the user cleanly.
+- **Router Integration (`src/App.tsx`)**:
+  - In `AppContent`, intercepted unconfigured sessions (`!isProfileConfigured && !isAdmin && hash !== '#onboarding'`) to render `<ProfileRestartPrompt />`.
+  - Updated completion callbacks for both `CompanyWizard` and `ProfileWizard` to re-check profile configuration and route directly to the active workspace (`#seeker`, `#employer`, or `#company-management`).
+- **Verification Gate**:
+  - `lint_applet` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Build succeeded cleanly.
+
+---
+
+## [0.5.27-dev.02] - 2026-10-03
+### Added & Enhanced (ITIL Service Transition - Admin Logo Navigation Routing)
+- **Admin Navigation Alignment (`src/App.tsx`, `src/components/Footer.tsx`)**:
+  - Fixed the header Navbar and Footer branding logo click behavior for platform administrators:
+    - Previously, clicking the logo linked to `href="#"`, which fell back to the root router condition where administrators were routed to `<EmployerDashboard />`.
+    - Updated Navbar logo link in `src/App.tsx` (line 128) to dynamically link to `href={isAdmin ? "#admin" : isCompany ? "#employer" : user ? "#seeker" : "#"}`.
+    - Updated Footer logo link in `src/components/Footer.tsx` (line 17) to dynamically link to `href={isAdmin ? "#admin" : user ? "#seeker" : "#"}`.
+    - Updated router fallback and title logic in `src/App.tsx` (lines 900-905 & 1042-1046) so that when an administrator lands on root or an empty hash, it renders `<AdminPanel />` (the Admin Dashboard) rather than `<EmployerDashboard />`.
+- **Verification Gate**:
+  - `lint_applet` (`tsc --noEmit`): 0 errors, 0 warnings.
+  - `compile_applet`: Build succeeded cleanly.
+
+---
+
+## [0.5.27-dev.01] - 2026-10-03
+### Added & Enhanced (ITIL Service Transition - 4 Profile Types Architecture & Cross-Company Isolation Fix)
+- **Problem Resolution (Prior Company Data Isolation)**:
+  - Diagnosed root cause of prior company candidate pipelines and job requisitions persisting across company changes:
+    1. In `src/pages/EmployerDashboard.tsx`, the admin filter condition unconditionally bypassed company filtering, falling back to all applications or prior stale company context.
+    2. In `src/components/JobRequisitionEditor.tsx`, requisition queries defaulted to a global query without scoping strictly to `companyId`.
+  - Fixed application filtering in `src/pages/EmployerDashboard.tsx` to strictly evaluate `effectiveCompanyId` (resolved from `recruiterCompany.claimedCompanyId`, `appUser?.activeCompanyId`, or selected company switcher item), with an explicit active company switcher dropdown in the dashboard header for admins and multi-company recruiters.
+  - Passed `effectiveCompanyId` to `JobRequisitionEditor`, and scoped `fetchRequisitions` strictly to `where('companyId', '==', companyId)`.
+- **4 Distinct Profile Types Architecture**:
+  1. **JobSeekers (`jobSeeker`)**:
+     - Retains candidate master profile, structured resume parsing, job application tracking, and dynamic 4-tier privacy controls (Unrestricted, Contact Masked, Anonymous Persona, Maximum Cloak) with public toggle.
+  2. **Recruiters (`recruiter`)**:
+     - Verified public profile at `#profile/{uid}` displaying recruiter title, company verification badge, bio, sourcing specialties, and active live job postings for their organization.
+     - Sourcing workspace and candidate pipeline dashboard with direct requisition assignment.
+     - Can join independently or accept invitations from company owners.
+  3. **Company Owners / Business Contact Managers (`companyOwner`)**:
+     - Full company brand governance, profile builder, and requisition oversight.
+     - Recruiter team management in `src/pages/CompanyManagement.tsx`: generate company-scoped recruiter invite codes (`REC-XXXX-XXXXX`), accept or decline inbound claim requests, and attach/detach recruiters.
+  4. **System Administrator (`admin` / Chris Barnes)**:
+     - Unrestricted developer admin panel, cross-company switcher, database seeders, and platform governance.
+- **Type Definitions & Security Rules (`src/types/index.ts`, `firestore.rules`)**:
+  - Added `RecruiterProfile` and `CompanyRecruiterInvite` interfaces to `src/types/index.ts`.
+  - Added `companyOwner` and updated `companyRole` union to include `'admin'`.
+  - Updated `firestore.rules` to secure `company_recruiter_invitations`, allow public reading of active recruiter profiles, and deployed rules via `deploy_firebase`.
+- **Registration Flow Upgrades (`src/App.tsx`, `src/hooks/useAuth.tsx`, `src/pages/CompanyWizard.tsx`)**:
+  - Upgraded `RegistrationFlow` with a 3-way profile selection grid (`Job Seeker`, `Recruiter`, `Company Owner`) with tailored invite code helpers.
+  - Updated `useAuth.tsx` (`signUpWithEmail`, `signInWithGoogle`) to validate recruiter invite codes from `company_recruiter_invitations` and assign company context.
+  - Enhanced `CompanyWizard.tsx` to initialize both public recruiter profiles and company ownership records during onboarding.
+- **Verification Gate**:
+  - `lint_applet` (`tsc --noEmit`) passed with 0 errors.
+  - `compile_applet` passed successfully.
+
+---
+
+## [0.5.26-dev.02] - 2026-10-03
+### Added & Enhanced (ITIL Service Transition - Formatting Polish & Prompt Hardening)
+- **Formatting Polish (`src/components/JobContentPreview.tsx`)**:
+  - Upgraded **Rich Text Mode** with dynamic icon mapping (`Briefcase` for descriptions, `CheckCircle2` for requirements, `DollarSign` for compensation, `Target` for responsibilities).
+  - Added support for **Code Blocks** (triple backticks) and **Horizontal Rules** (`---`) within the Rich Text preview.
+  - Implemented 1-click **Markdown Source Copy** and **Raw Text Copy** directly inside the preview containers with hover-state feedback.
+  - Refined visual hierarchy of section headers with high-contrast borders and indigo accents.
+- **Backend Prompt Hardening (`server.ts`)**:
+  - Re-architected Gemini extraction prompts (Tier V2 & V3) using **XML-tagged structures** (`<role>`, `<task>`, `<constraints>`, `<job_context>`) to enforce strict grounding and reduce hallucinations.
+  - Hardened constraints for salary extraction (return `null` instead of found-equivalent) and skill categorization as requested in the GovJobs bridge optimization.
+- **Extension Infrastructure Audit (`extension/manifest.json`)**:
+  - Set default injection timing to `run_at: document_idle` ensuring DOM readiness for `.term-block` scraping.
+  - Added `exclude_globs` for login/signup paths to prevent redundant script execution.
+  - Implemented **Content Security Policy (CSP)** allowlist for Firebase, Google Identity, and local backend domains to fix potential service worker connectivity issues.
+  - Enabled `match_origin_as_fallback` for robust iframe scraping on NEOGOV-integrated sites.
+- **Verification Gate**: Passed `tsc --noEmit` and production build with 0 warnings.
+
+---
+
+## [0.5.26-dev.01] - 2026-10-03
+### Added & Enhanced (ITIL Service Transition - Rich Text, Enhanced Markdown & Raw Text Preview)
+- **Job Content Preview Engine (`src/components/JobContentPreview.tsx`)**:
+  - Implemented a modular, accessible preview renderer supporting 3 distinct modes:
+    - **Enhanced Rich Text (`rich`)**: Semantic structured sections with layer headers, custom indigo bullet points, circular step badges for ordered lists, styled blockquotes, code tags, and bold text.
+    - **Clean Markdown Preview (`markdown`)**: Crisp document typography with preserved spacing and line heights.
+    - **Raw Text View (`raw`)**: Pure unformatted plain text with all markdown syntax (`###`, `**`, `*`, `_`, `` ` ``, `>`) stripped via deterministic `stripMarkdownFormatting` regex cleaner.
+  - Built-in 1-click clipboard copy with live toast confirmation feedback (`Copied!`).
+  - Phrasing content architecture (`asParagraph` mode) guaranteeing 100% compliant HTML within `<p>` tags while preserving direct DOM selector access (`div:nth-of-type(5) > p:nth-of-type(1)` and `div:nth-of-type(6) > p:nth-of-type(1)`).
+- **Targeted Element Upgrades (`src/pages/JobDescription.tsx`)**:
+  - **Selector 1 (`div:nth-of-type(5) > p:nth-of-type(1)`)**: Replaced unstyled `<p className="... whitespace-pre-wrap">{job.description}</p>` with dynamic `JobContentPreview` wired to the global preview mode.
+  - **Selector 2 (`div:nth-of-type(6) > p:nth-of-type(1)`)**: Replaced unstyled `<p className="... whitespace-pre-wrap">{job.requirements}</p>` with dynamic `JobContentPreview` for requirements.
+  - **Selector 3 (`div:nth-of-type(4) > button:nth-of-type(1)`)**: Maintained the direct Version History button and enhanced the header with a dedicated preview mode switcher (`Rich Text`, `Markdown`, `Raw Text`) and a 1-click "Copy All Raw Text" action.
+- **Accessibility & Safety Compliance**:
+  - WCAG 2.1/2.2 AA compliant contrast (>= 4.5:1), visible focus rings (`focus-visible:ring-2`), and ARIA tab semantics (`role="tablist"`, `role="tab"`, `aria-selected`).
+  - NASA JPL Rule 2 & Rule 4 compliant bounded loops with safe upper limits (`MAX_ITERATION_CEILING`).
+  - Verification: 0 compiler warnings, 0 linter errors (`tsc --noEmit`), and full green production compilation.
+
+---
+
+## [0.5.26] - 2026-09-30
+### Release Cut & Milestone Promotion (ITIL Release & Deployment Management)
+- **Public Milestone Cut**: Successfully promoted iterations `0.5.25-dev.01` through `0.5.25-dev.25` into public milestone release **v0.5.26**.
+- **Configuration Item (CI) Synchronizations**:
+  - `package.json`: Version bumped to `0.5.26`.
+  - `src/config.ts`: `STATIC_CONFIG.APP.VERSION` synchronized to `0.5.26`.
+  - `Docs/INDEX_AUDIT.md`: Audited configuration items and updated `package.json` entry to `v0.5.26`.
+  - `Docs/CHANGELOG.md`: Appended official customer-facing release notes for `v0.5.26`.
+- **Validation Gate Sign-Off**: Verification suites executed with 0 compiler warnings, 0 linter errors (`tsc --noEmit`), and full production build readiness.
+
+---
+
 ## [0.5.25-dev.25] - 2026-09-30
 ### Added & Enhanced (ITIL Service Transition - RBAC Authentication Bridge & Role Lockdown)
 - **Extension Authentication Gateway (`extension/popup.html`, `extension/popup.js`)**:

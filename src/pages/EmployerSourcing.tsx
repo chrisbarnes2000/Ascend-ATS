@@ -5,7 +5,8 @@ import { motion } from 'motion/react';
 import { useAuth } from '../hooks/useAuth';
 
 export function EmployerSourcing({ isEmbedded = false }: { isEmbedded?: boolean }) {
-  const { appUser } = useAuth();
+  const { user, appUser } = useAuth();
+  const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1';
   const [candidates, setCandidates] = useState<(JobSeekerProfile & { id: string, uid?: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const [roleFilter, setRoleFilter] = useState('');
@@ -27,6 +28,9 @@ export function EmployerSourcing({ isEmbedded = false }: { isEmbedded?: boolean 
       const safeIndustry = myIndustry.trim().toLowerCase();
       
       snapshot.forEach(docSnap => {
+        // Only include job seeker 'main' profiles, exclude 'company' or other organizational profiles
+        if (docSnap.id !== 'main') return;
+
         const data = docSnap.data();
         const privacy = data.privacy || {};
         if (privacy.searchable === false) return;
@@ -90,9 +94,16 @@ export function EmployerSourcing({ isEmbedded = false }: { isEmbedded?: boolean 
         <div className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div>
             <h1 className="text-4xl font-extrabold tracking-tight mb-2">Talent Sourcing Engine</h1>
-            <p className="text-slate-500 dark:text-slate-400 max-w-xl text-sm leading-relaxed">
-              Explore qualified profiles in our passive candidate pool. Results are screened instantly by Ascend’s automated privacy filter, matching target roles while respecting competitor exclusion rules dynamically.
-            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-slate-500 dark:text-slate-400 max-w-xl text-sm leading-relaxed">
+                Explore qualified profiles in our passive candidate pool. Results are screened instantly by Ascend’s automated privacy filter.
+              </p>
+              {isAdmin && (
+                <span className="bg-indigo-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 shadow-lg shadow-indigo-200">
+                  <Shield className="w-3 h-3" /> ADMIN OVERRIDE
+                </span>
+              )}
+            </div>
           </div>
           
           {/* Mock auth state selectors for demo purposes */}
@@ -172,6 +183,11 @@ export function EmployerSourcing({ isEmbedded = false }: { isEmbedded?: boolean 
                   <div>
                     <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100 flex-wrap">
                       {fullName || 'Anonymous Candidate'}
+                      {isAdmin && (
+                        <span className="text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                          {candidate.uid}
+                        </span>
+                      )}
                       {pLevel === 2 && (
                         <span className="bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-400 text-[10px] px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider flex items-center gap-1 border border-sky-200/40">
                           <EyeOff className="w-3 h-3" /> L2: Masked Contact
