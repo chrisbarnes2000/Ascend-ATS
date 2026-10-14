@@ -140,7 +140,56 @@ export function detectMaterialShifts(
       });
       riskScoreIncrease += points;
     }
+
+    // 6. Company Name Verification/Correction
+    if (oldJob.companyName && newJob.companyName && oldJob.companyName.trim() !== newJob.companyName.trim()) {
+      shifts.push({
+        field: 'companyName',
+        description: `Verified hiring entity: "${oldJob.companyName}" ➔ "${newJob.companyName}"`,
+        severity: 'low',
+        riskPoints: 0,
+        previousValue: oldJob.companyName,
+        newValue: newJob.companyName
+      });
+    }
+
+    // 7. Staffing / Recruiter Firm Agency Verification
+    const oldFirm = (oldJob.posterFirmName || '').trim();
+    const newFirm = (newJob.posterFirmName || '').trim();
+    if (oldFirm !== newFirm) {
+      shifts.push({
+        field: 'posterFirmName',
+        description: `Recruiting firm representation updated: "${oldFirm || 'Direct Hire'}" ➔ "${newFirm || 'Direct Hire'}"`,
+        severity: 'low',
+        riskPoints: 0,
+        previousValue: oldFirm || 'Direct Hire',
+        newValue: newFirm || 'Direct Hire'
+      });
+    }
   }
+
+  // 6. Cultural Red Flag Phrase Detection in Description/Requirements
+  const textToScan = `${newJob.description || ''} ${newJob.requirements || ''}`.toLowerCase();
+  const CULTURAL_RED_FLAGS = [
+    { phrase: 'we are a family', note: 'Red Flag: "We are a family" masks poor boundaries. Preferred: Ecosystem with mutual respect.' },
+    { phrase: 'work hard play hard', note: 'Red Flag: "Work hard play hard" often signals unpaced hustle culture.' },
+    { phrase: 'relentless hustle', note: 'Red Flag: "Relentless hustle" violates pacing & rest principles.' },
+    { phrase: 'results matter feelings don', note: 'Red Flag: Violates gracious professionalism (Excellence & Empathy).' },
+    { phrase: 'failure is not an option', note: 'Red Flag: Penalizes early accountability and experimentation.' }
+  ];
+
+  CULTURAL_RED_FLAGS.forEach(rf => {
+    if (textToScan.includes(rf.phrase)) {
+      shifts.push({
+        field: 'requirements',
+        description: rf.note,
+        severity: 'moderate',
+        riskPoints: 10,
+        newValue: rf.phrase
+      });
+      riskScoreIncrease += 10;
+    }
+  });
 
   // Calculate Aggregates
   const prevRiskScore = oldJob?.nefariousRiskScore || 0;

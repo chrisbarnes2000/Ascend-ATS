@@ -120,6 +120,47 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "companyId", "status", "createdAt"]
+    },
+    "RecruiterLead": {
+      "title": "Recruiter Lead",
+      "description": "Inbound and mass-ingested recruiter leads for strategic outreach",
+      "type": "object",
+      "properties": {
+        "recruiterName": { "type": "string" },
+        "recruiterEmail": { "type": "string" },
+        "recruiterPhone": { "type": "string" },
+        "firmName": { "type": "string" },
+        "clientName": { "type": "string" },
+        "sourceBoard": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "status": { "type": "string", "enum": ["discovered", "invited", "contacted", "claimed"] },
+        "discoveredByEmail": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "JobReport": {
+      "title": "Job Report",
+      "description": "Reports by candidates or recruiters flagging incorrect or problematic job postings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "jobId": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "companyName": { "type": "string" },
+        "posterFirmName": { "type": "string" },
+        "reporterUid": { "type": "string" },
+        "reporterEmail": { "type": "string" },
+        "reporterRole": { "type": "string", "enum": ["candidate", "recruiter", "admin"] },
+        "reason": { "type": "string" },
+        "notes": { "type": "string" },
+        "proposedCompanyName": { "type": "string" },
+        "proposedPosterFirmName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "resolvedAt": { "type": "string", "format": "date-time" },
+        "resolvedNotes": { "type": "string" }
+      },
+      "required": ["jobId", "reason", "status"]
     }
   },
   "firestore": {
@@ -154,6 +195,14 @@
     "company_claim_requests/{requestId}": {
       "schema": "CompanyClaimRequest",
       "description": "Recruiter requests to claim/link to a company"
+    },
+    "recruiter_leads/{leadId}": {
+      "schema": "RecruiterLead",
+      "description": "Auto-discovered and mass-imported recruiter leads"
+    },
+    "job_reports/{reportId}": {
+      "schema": "JobReport",
+      "description": "Discrepancy and quality reports submitted for job postings"
     }
   }
 }

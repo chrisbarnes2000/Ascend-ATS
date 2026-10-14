@@ -13,6 +13,8 @@
 │   ├── RoadMaps/          # Architectural roadmap specifications (e.g., Dedup_Validation_Merge_Engine.md)
 │   ├── RapportVerse_Bridge_Integration_Guide.md # Technical contract & implementation guide for RapportVerse
 │   ├── GovJobs_Bridge_Integration_Guide.md # Technical spec for NEOGOV / GovernmentJobs.com ingestion
+│   ├── FastCompany_26_Cultural_Values.md # Fast Company Impact Council 26 Cultural Values tracking doc
+│   ├── Manpower_5_Keys_Working_With_Recruiter.md # Manpower 5 Keys to Working with a Recruiter tracking doc
 │   └── Ascend_ATS_Partner_Kit.md # Partnership badges and markdown integration kit
 ├── /public/               # Public static assets, machine-readable indexes & device icons
 │   ├── templates/         # Downloadable JSON templates
@@ -30,22 +32,25 @@
 │   ├── pwa-192x192.png    # 192x192 Android / Chromium PWA home screen icon
 │   ├── pwa-512x512.png    # 512x512 Android / Chromium splash icon
 │   ├── robots.txt         # Search engine crawler index directive & mirror (Robot.txt)
-│   ├── llms.txt           # Structured machine-readable LLM ecosystem index & mirrors (llm.txt, LLMs.txt)
+│   ├── PARSING_ENGINE_SUMMARY.md # DeepSeek token optimization & parsing engine architecture summary
 │   ├── 400.html           # Standalone accessible 400 Bad Request error page
 │   ├── 404.html           # Standalone accessible 404 Not Found error page
 │   └── 500.html           # Standalone accessible 500 Internal Server Error page
 ├── /src/                  # React Application Source Code
 │   ├── components/        # Reusable UI components
-│   │   ├── admin/         # Decomposed Admin Terminal subcomponents (AdminHeaderStats, AdminDataSeedingTab, AdminInvitationsTab, AdminPartnerRequestsTab, AdminRecruiterLeadsTab, AdminSecurityTab, AdminConfirmationModal, adminMockData)
-│   │   └── tracker/       # Job tracker, ingestion form, and AI resume tailoring workspace
+│   │   ├── admin/         # Decomposed Admin Terminal subcomponents (AdminHeaderStats, AdminJobModerationTab, AdminJobValidationModal, AdminPostDetailsModal, AdminDataSeedingTab, AdminInvitationsTab, AdminPartnerRequestsTab, AdminRecruiterLeadsTab, AdminMassImportTab, AdminSecurityTab, AdminConfirmationModal, adminMockData)
+│   │   ├── profile/       # Profile management editors (TargetIndicatorsEditor, IndustryEditor, LocationEditor, ExperienceEditor, PersonalInfoEditor, SkillsEditor, PrivacyControls, DeiAccommodationsEditor, SectionOrderEditor)
+│   │   ├── tracker/       # Job tracker, ingestion form, and AI resume tailoring workspace
+│   │   └── ReportJobModal.tsx # Multi-role candidate/recruiter modal for reporting misparsed or bad postings
+│   ├── data/              # Static catalogs & rosters (culturalValuesCatalog.ts, skillsCatalog.ts, masterContactRoster.ts)
 │   ├── firebase/          # Firebase configuration and initialization
 │   ├── hooks/             # Custom React hooks (e.g., useAuth)
-│   ├── pages/             # Page components (e.g., LandingPage, JobSeekerDashboard, JobSeekerAnalytics, ProfileWizard, CompanyWizard, EmployerDashboard, AffiliatesPage, RapportVersePage, AdminPanel with Staffing Invitation Gateway)
+│   ├── pages/             # Page components (e.g., LandingPage, JobSeekerDashboard, JobSeekerAnalytics, ProfileWizard, CompanyWizard, EmployerDashboard, AffiliatesPage, RapportVersePage, AdminPanel with Staffing Invitation Gateway & Mass Ingestion)
 │   ├── types/             # Shared TypeScript definitions
-│   └── utils/             # Modular utilities (e.g., identityGovernance, jobDedup, profileMerge, materialShiftEngine, applicationLifecycle, jsonProfileParser)
+│   └── utils/             # Modular utilities (e.g., identityGovernance, jobDedup, profileMerge, materialShiftEngine, applicationLifecycle, jsonProfileParser, massOutreachParser, textWhitespaceNormalizer, locationAndWorkplaceSanitizer, salarySanitizer, companyLogoResolver)
 ├── /tests/                # Automated unit and integration test suite
 │   ├── runAllTests.ts     # Master test execution harness
-│   └── unit/              # High-density invariant and boundary unit tests (e.g., jobDedup.test.ts, profileMerge.test.ts, materialShiftEngine.test.ts, identityGovernance.test.ts, jsonProfileParser.test.ts)
+│   └── unit/              # High-density invariant and boundary unit tests (e.g., companyLogoResolver.test.ts, textWhitespaceNormalizer.test.ts, locationAndWorkplaceSanitizer.test.ts, salarySanitizer.test.ts, jobModerationAndNlpGuards.test.ts, jobDedup.test.ts, profileMerge.test.ts, materialShiftEngine.test.ts)
 ├── /server.ts             # Express server entry point (API and Vite integration)
 └── /package.json          # Dependency management and script definitions
 ```

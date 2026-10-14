@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, deleteDoc, doc, setDoc, serverTimestamp, collectionGroup } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from '../hooks/useAuth';
-import { ShieldAlert, Database, Plus, Building, Mail, Terminal } from 'lucide-react';
+import { ShieldAlert, Database, Plus, Building, Mail, Terminal, Sparkles, Flag } from 'lucide-react';
 
 import { sampleJobSets, companiesDetails } from '../components/admin/adminMockData';
 import { AdminHeaderStats } from '../components/admin/AdminHeaderStats';
@@ -10,14 +10,20 @@ import { AdminDataSeedingTab } from '../components/admin/AdminDataSeedingTab';
 import { AdminInvitationsTab } from '../components/admin/AdminInvitationsTab';
 import { AdminPartnerRequestsTab } from '../components/admin/AdminPartnerRequestsTab';
 import { AdminRecruiterLeadsTab } from '../components/admin/AdminRecruiterLeadsTab';
+import { AdminMassImportTab } from '../components/admin/AdminMassImportTab';
 import { AdminSecurityTab } from '../components/admin/AdminSecurityTab';
+import { AdminJobModerationTab } from '../components/admin/AdminJobModerationTab';
 import { AdminConfirmationModal } from '../components/admin/AdminConfirmationModal';
+import { ParsedOutreachContact, MAX_IMPORT_ROWS } from '../utils/massOutreachParser';
+import { sanitizeFirestorePayload } from '../utils/firestoreSanitizer';
+import { MASTER_CONTACT_ROSTER } from '../data/masterContactRoster';
+import { Job, JobReport } from '../types';
 
 export default function AdminPanel() {
   const { user } = useAuth();
   const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1';
 
-  const [adminMode, setAdminMode] = useState<'simulation' | 'invitations' | 'requests' | 'leads' | 'security'>('simulation');
+  const [adminMode, setAdminMode] = useState<'simulation' | 'invitations' | 'requests' | 'leads' | 'moderation' | 'security' | 'mass-import'>('simulation');
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [stats, setStats] = useState({ jobsCount: 0, appsCount: 0, usersCount: 0, companiesCount: 0 });
@@ -44,6 +50,11 @@ export default function AdminPanel() {
 
   const [activeLeads, setActiveLeads] = useState<any[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
+
+  // Job Quality Moderation & Reports State
+  const [activeJobReports, setActiveJobReports] = useState<JobReport[]>([]);
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
 
   const [inviteModalData, setInviteModalData] = useState<{
     isOpen: boolean;
@@ -161,11 +172,34 @@ export default function AdminPanel() {
     }
   };
 
+  const fetchJobReports = async () => {
+    setLoadingReports(true);
+    try {
+      const snap = await getDocs(collection(db, 'job_reports'));
+      setActiveJobReports(snap.docs.map(d => ({ id: d.id, ...d.data() } as JobReport)));
+    } catch (err) {
+      console.warn("Failed to fetch job reports:", err);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'jobs'));
+      setAllJobs(snap.docs.map(d => ({ id: d.id, ...d.data() } as Job)));
+    } catch (err) {
+      console.warn("Failed to fetch jobs:", err);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
     fetchInvitations();
     fetchRequests();
     fetchLeads();
+    fetchJobReports();
+    fetchJobs();
   }, [adminMode]);
 
   const handleSyncCompanies = async () => {
@@ -408,6 +442,104 @@ export default function AdminPanel() {
     showStatus(`Pre-populated partner invitation for ${lead.recruiterName} (${lead.recruiterEmail}). Click "Issue Token & Prepare Email" to finalize.`, 'info');
   };
 
+  const handleBatchIssueInvitations = async (contacts: ParsedOutreachContact[]): Promise<number> => {
+    setIsProcessing(true);
+    let count = 0;
+    try {
+      for (let i = 0; i < contacts.length && i < MAX_IMPORT_ROWS; i++) {
+        const c = contacts[i];
+        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        await setDoc(doc(db, 'staffing_invitations', inviteCode), {
+          email: c.email || '',
+          targetFirmName: c.company || c.fullName || 'Strategic Staffing Partner',
+          role: c.classification === 'staffing_partner' ? 'recruiter' : 'recruiter',
+          inviteCode,
+          status: 'active',
+          createdAt: serverTimestamp(),
+          issuedBy: user?.email,
+          contactName: c.fullName,
+          contactPhone: c.phone || '',
+          linkedInUrl: c.linkedInUrl || ''
+        });
+        count++;
+      }
+      fetchInvitations();
+      fetchStats();
+      return count;
+    } catch (err: any) {
+      showStatus('Batch token generation error: ' + err.message, 'error');
+      return count;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleBatchSyncRecruiterLeads = async (contacts: ParsedOutreachContact[]): Promise<number> => {
+    setIsProcessing(true);
+    let count = 0;
+    try {
+      for (let i = 0; i < contacts.length && i < MAX_IMPORT_ROWS; i++) {
+        const c = contacts[i];
+        const rawPayload = {
+          recruiterName: c.fullName || 'Discovered Recruiter',
+          recruiterEmail: c.email || null,
+          recruiterPhone: c.phone || null,
+          firmName: c.company || 'Direct Agency',
+          jobTitle: c.position || 'Recruiter / Talent Partner',
+          sourceBoard: c.source === 'linkedin_export' ? 'LinkedIn Connections' : 'Network Ingestion',
+          discoveredByEmail: user?.email || 'admin',
+          status: 'discovered',
+          linkedInUrl: c.linkedInUrl || null,
+          relationship: c.relationship || null,
+          createdAt: serverTimestamp()
+        };
+        const cleanPayload = sanitizeFirestorePayload(rawPayload);
+        await setDoc(doc(db, 'recruiter_leads', c.id), cleanPayload, { merge: true });
+        count++;
+      }
+      fetchLeads();
+      fetchStats();
+      return count;
+    } catch (err: any) {
+      showStatus('Batch sync recruiter leads error: ' + err.message, 'error');
+      return count;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleBatchConvertRequests = async (contacts: ParsedOutreachContact[]): Promise<number> => {
+    setIsProcessing(true);
+    let count = 0;
+    try {
+      for (let i = 0; i < contacts.length && i < MAX_IMPORT_ROWS; i++) {
+        const c = contacts[i];
+        const reqId = `req_${c.id}`;
+        await setDoc(doc(db, 'partner_requests', reqId), {
+          email: c.email || 'pending-email@ascend.internal',
+          fullName: c.fullName,
+          name: c.fullName,
+          companyName: c.company || 'Enterprise Partner',
+          firmName: c.company || 'Enterprise Partner',
+          phone: c.phone || null,
+          source: 'Network Ingestion',
+          details: `Position: ${c.position || 'N/A'}. LinkedIn: ${c.linkedInUrl || 'N/A'}`,
+          status: 'pending',
+          createdAt: serverTimestamp()
+        }, { merge: true });
+        count++;
+      }
+      fetchRequests();
+      fetchStats();
+      return count;
+    } catch (err: any) {
+      showStatus('Batch access requests error: ' + err.message, 'error');
+      return count;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen pt-24 flex flex-col items-center justify-center p-4">
@@ -441,6 +573,7 @@ export default function AdminPanel() {
           stats={stats}
           isProcessing={isProcessing}
           onSyncCompanies={handleSyncCompanies}
+          onSelectTab={setAdminMode}
         />
 
         {/* 2. Admin View Mode Selector Tabs */}
@@ -491,6 +624,30 @@ export default function AdminPanel() {
           >
             <Mail className="w-4 h-4 text-amber-500" />
             <span>Recruiter Leads ({activeLeads.length})</span>
+          </button>
+
+          <button
+            onClick={() => setAdminMode('moderation')}
+            className={`px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+              adminMode === 'moderation'
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20'
+                : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Flag className="w-4 h-4 text-rose-500" />
+            <span>Job Moderation ({activeJobReports.filter(r => r.status === 'pending').length})</span>
+          </button>
+
+          <button
+            onClick={() => setAdminMode('mass-import')}
+            className={`px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+              adminMode === 'mass-import'
+                ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20'
+                : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>Mass Import & Outreach</span>
           </button>
 
           <button
@@ -559,6 +716,44 @@ export default function AdminPanel() {
             onSyncLeads={fetchLeads}
             onDeleteLead={handleDeleteLead}
             onInviteLead={handleInviteLead}
+            onImportFromRoster={async () => {
+              const count = await handleBatchSyncRecruiterLeads(MASTER_CONTACT_ROSTER);
+              showStatus(`Imported ${count} verified leads from network roster!`, 'success');
+            }}
+          />
+        )}
+
+        {adminMode === 'mass-import' && (
+          <AdminMassImportTab
+            onBatchIssueInvitations={handleBatchIssueInvitations}
+            onBatchSyncRecruiterLeads={handleBatchSyncRecruiterLeads}
+            onBatchConvertRequests={handleBatchConvertRequests}
+            isProcessing={isProcessing}
+            showStatus={showStatus}
+          />
+        )}
+
+        {adminMode === 'moderation' && (
+          <AdminJobModerationTab
+            reports={activeJobReports}
+            jobs={allJobs}
+            loading={loadingReports}
+            onRefresh={() => {
+              fetchJobReports();
+              fetchJobs();
+            }}
+            onJobUpdated={(updatedJob) => {
+              setAllJobs(prev => prev.map(j => j.id === updatedJob.id ? updatedJob : j));
+              showStatus(`Updated and validated "${updatedJob.title}"!`, 'success');
+            }}
+            onJobDeleted={(deletedId) => {
+              setAllJobs(prev => prev.filter(j => j.id !== deletedId));
+              showStatus('Permanently purged bad job posting.', 'success');
+            }}
+            onReportDismissed={(repId) => {
+              setActiveJobReports(prev => prev.filter(r => r.id !== repId));
+              showStatus('Dismissed report.', 'info');
+            }}
           />
         )}
 

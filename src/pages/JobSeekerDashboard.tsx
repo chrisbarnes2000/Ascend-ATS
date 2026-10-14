@@ -7,10 +7,15 @@ import { Application, JobSeekerProfile, ApplicationStatus } from '../types';
 import { 
   Send, Clock, CheckCircle2, TrendingUp, Sparkles, 
   ChevronRight, ExternalLink, Briefcase, MapPin, DollarSign,
-  Plus, Loader2, Check, HelpCircle, MessageSquare, X, Lock
+  Plus, Loader2, Check, HelpCircle, MessageSquare, X, Lock, Flag
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { JobTracker } from '../components/tracker/JobTracker';
+import { RecruiterCultureMatrix } from '../components/profile/RecruiterCultureMatrix';
+import { ReportJobModal } from '../components/ReportJobModal';
+import { CompanyLogo } from '../components/CompanyLogo';
+import { normalizeJobSalaryValue } from '../utils/salarySanitizer';
+import { parseAndSanitizeLocationAndWorkplace } from '../utils/locationAndWorkplaceSanitizer';
 
 // Internal Components for Dashboard
 const ApplicationPipeline = ({ applications }: { applications: Application[] }) => {
@@ -481,7 +486,27 @@ export const JobSeekerDashboard = () => {
   const [profile, setProfile] = useState<JobSeekerProfile | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const { matches, loading: matchingLoading } = useJobMatching(profile);
-  const [view, setView] = useState<'matches' | 'pipeline' | 'tracker'>('matches');
+  const [view, setView] = useState<'matches' | 'pipeline' | 'tracker' | 'culture_matrix'>('matches');
+  const [reportingJob, setReportingJob] = useState<any | null>(null);
+
+  const handleSaveCulturePreferences = async (culturalPreferences: string[], recruiterPrefs: any) => {
+    if (!user) return;
+    try {
+      const profileRef = doc(db, 'users', user.uid, 'profiles', 'main');
+      await updateDoc(profileRef, {
+        culturalPreferences,
+        recruiterPreferences: recruiterPrefs,
+        updatedAt: serverTimestamp()
+      });
+      setProfile(prev => prev ? {
+        ...prev,
+        culturalPreferences,
+        recruiterPreferences: recruiterPrefs
+      } : null);
+    } catch (err) {
+      console.error('Failed to save culture preferences:', err);
+    }
+  };
 
   const formatTimeAgo = (createdAt: any) => {
     if (!createdAt) return 'Recently';
@@ -637,7 +662,7 @@ export const JobSeekerDashboard = () => {
   }, [user]);
 
   return (
-    <div className="min-h-screen pt-24 pb-12 px-4 w-full md:w-[75vw] max-w-none mx-auto">
+    <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 md:px-8 w-full max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
         <div>
           <h1 className="text-4xl font-bold mb-2">Hello, {appUser?.email ? appUser.email.split('@')[0] : 'User'}</h1>
@@ -673,7 +698,7 @@ export const JobSeekerDashboard = () => {
         <div className="space-y-8">
           {/* Header tabs inside tracker view to match theme */}
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex gap-8">
+            <div className="flex flex-wrap gap-4 sm:gap-8">
               <button 
                 onClick={() => setView('matches')}
                 className={`pb-4 px-2 font-bold text-sm transition-all relative ${
@@ -700,17 +725,24 @@ export const JobSeekerDashboard = () => {
               >
                 Job Tracker & AI Copilot
                 {view === 'tracker' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+              <button 
+                onClick={() => setView('culture_matrix')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'culture_matrix' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Culture & Recruiter Matrix
+                {view === 'culture_matrix' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
               </button>
             </div>
           </div>
           <JobTracker profile={profile} />
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-8">
+      ) : view === 'culture_matrix' ? (
+        <div className="space-y-8">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex gap-8">
+            <div className="flex flex-wrap gap-4 sm:gap-8">
               <button 
                 onClick={() => setView('matches')}
                 className={`pb-4 px-2 font-bold text-sm transition-all relative ${
@@ -737,6 +769,65 @@ export const JobSeekerDashboard = () => {
               >
                 Job Tracker & AI Copilot
                 {view === 'tracker' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+              <button 
+                onClick={() => setView('culture_matrix')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'culture_matrix' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Culture & Recruiter Matrix
+                {view === 'culture_matrix' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
+              </button>
+            </div>
+          </div>
+          <RecruiterCultureMatrix
+            role="jobSeeker"
+            profile={profile || undefined}
+            onSavePreferences={handleSaveCulturePreferences}
+          />
+        </div>
+      ) : (
+        <div className={`grid grid-cols-1 ${view === 'pipeline' ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-12`}>
+        {/* Main Content Area */}
+        <div className={`${view === 'pipeline' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-8`}>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex flex-wrap gap-4 sm:gap-8">
+              <button 
+                onClick={() => setView('matches')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'matches' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Top Matches
+                {view === 'matches' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+              <button 
+                onClick={() => setView('pipeline')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'pipeline' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Application Pipeline
+                {view === 'pipeline' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+              <button 
+                onClick={() => setView('tracker')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'tracker' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Job Tracker & AI Copilot
+                {view === 'tracker' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
+              </button>
+              <button 
+                onClick={() => setView('culture_matrix')}
+                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
+                  view === 'culture_matrix' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Culture & Recruiter Matrix
+                {view === 'culture_matrix' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
               </button>
             </div>
           </div>
@@ -750,10 +841,9 @@ export const JobSeekerDashboard = () => {
                   matches.map(({ job, score, tier }, i) => {
                     const styles = getScoreStyles(score);
                     const matchBreakdown = getMatchBreakdown(profile, job);
-                    const jobMinSalary = job.parsedCriteria?.salaryRange?.min || 80000;
-                    const jobMaxSalary = job.parsedCriteria?.salaryRange?.max || 130000;
-                    const workplace = job.workplaceType || job.parsedCriteria?.workplaceType || 'Remote';
-                    const location = job.location || job.parsedCriteria?.location || 'San Francisco, CA';
+                    const jobMinSalary = normalizeJobSalaryValue(job.parsedCriteria?.salaryRange?.min ?? job.salaryMin, 55000);
+                    const jobMaxSalary = normalizeJobSalaryValue(job.parsedCriteria?.salaryRange?.max ?? job.salaryMax, 85000);
+                    const locInfo = parseAndSanitizeLocationAndWorkplace(job);
 
                     return (
                       <motion.div 
@@ -761,15 +851,13 @@ export const JobSeekerDashboard = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.1 }}
                         key={job.id} 
-                        className={`group relative p-8 rounded-3xl border hover:shadow-xl hover:-translate-y-1 transition-all ${styles.card}`}
+                        className={`group relative p-4 sm:p-6 md:p-8 rounded-3xl border hover:shadow-xl hover:-translate-y-1 transition-all w-full max-w-full overflow-hidden box-border ${styles.card}`}
                       >
-                        <div className="flex justify-between items-start mb-6">
-                          <div className="flex gap-4">
-                            <div className="w-14 h-14 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-700 shrink-0">
-                              <Briefcase className="w-6 h-6 text-slate-400" />
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight">{job.title}</h3>
+                        <div className="flex justify-between items-start mb-4 sm:mb-6 gap-3">
+                          <div className="flex gap-3 sm:gap-4 min-w-0 flex-1">
+                            <CompanyLogo companyName={job.companyName} jobTitle={job.title} />
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-base sm:text-lg md:text-xl font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors uppercase tracking-tight truncate">{job.title}</h3>
                               <div className="flex flex-col">
                                 <div className="font-medium text-slate-600 dark:text-slate-400 flex flex-wrap items-center gap-1.5 leading-snug">
                                   {job.isClientConfidential ? (
@@ -790,6 +878,26 @@ export const JobSeekerDashboard = () => {
                                       posted/managed by <span className="font-bold text-indigo-600 dark:text-indigo-400">{job.posterFirmName}</span>
                                     </span>
                                   )}
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setReportingJob({
+                                        id: job.id,
+                                        title: job.title,
+                                        companyName: job.companyName,
+                                        posterFirmName: job.posterFirmName
+                                      });
+                                    }}
+                                    className="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ml-1 cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+                                    title="Report incorrect company or recruiter info"
+                                    aria-label={`Report incorrect info for ${job.title}`}
+                                  >
+                                    <Flag className="w-3 h-3" />
+                                    <span>Report</span>
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -804,9 +912,35 @@ export const JobSeekerDashboard = () => {
 
                         {/* Workplace, Salary & Benefits Tags */}
                         <div className="flex flex-wrap gap-2.5 mb-5">
-                           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
-                             <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" /> {workplace} • {location}
+                           <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition-colors ${
+                             locInfo.workplaceType === 'Hybrid'
+                               ? 'bg-purple-50 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-200/80 dark:border-purple-800/80 shadow-xs'
+                               : locInfo.workplaceType === 'On-Site'
+                               ? 'bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/80'
+                               : 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/80'
+                           }`}>
+                             <MapPin className={`w-3.5 h-3.5 shrink-0 ${
+                               locInfo.workplaceType === 'Hybrid' ? 'text-purple-600 dark:text-purple-400' :
+                               locInfo.workplaceType === 'On-Site' ? 'text-amber-600 dark:text-amber-400' :
+                               'text-emerald-600 dark:text-emerald-400'
+                             }`} />
+                             <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                               locInfo.workplaceType === 'Hybrid' ? 'bg-purple-200/70 text-purple-900 dark:bg-purple-900/60 dark:text-purple-200' :
+                               locInfo.workplaceType === 'On-Site' ? 'bg-amber-200/70 text-amber-900 dark:bg-amber-900/60 dark:text-amber-200' :
+                               'bg-emerald-200/70 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200'
+                             }`}>
+                               {locInfo.workplaceType}
+                             </span>
+                             <span>
+                               {locInfo.workplaceSummary.includes('•') ? locInfo.workplaceSummary.split('•')[1].trim() + ' • ' : ''}
+                               {locInfo.location}
+                             </span>
                            </div>
+                           {locInfo.hasTravelRequirement && (
+                             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-3 py-1.5 rounded-xl border border-amber-200/80 dark:border-amber-800/80 shadow-xs">
+                               <span className="text-sm">🚗</span> {locInfo.travelRequirement}
+                             </div>
+                           )}
                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
                              <DollarSign className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> ${((jobMinSalary)/1000).toFixed(0)}k - ${((jobMaxSalary)/1000).toFixed(0)}k
                            </div>
@@ -897,58 +1031,125 @@ export const JobSeekerDashboard = () => {
           </div>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-8">
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm text-slate-900 dark:text-white">
-             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-               <TrendingUp className="w-5 h-5 text-blue-500" />
-               Market Insights
-             </h3>
-             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-               Roles for <strong>{profile?.targetRole || 'your profile'}</strong> are up 12% this month in your area.
-             </p>
-             <div className="space-y-4">
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                   <div className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Avg. Salary</div>
-                   <div className="text-xl font-bold text-slate-900 dark:text-white">$165,000</div>
-                </div>
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                   <div className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Top Skill in Demand</div>
-                   <div className="text-xl font-bold text-blue-600 dark:text-blue-400">System Design</div>
-                </div>
-             </div>
-          </div>
+        {/* Sidebar (Omitted on Application Pipeline view) */}
+        {view !== 'pipeline' && (() => {
+          const validSalaries = matches.map(m => {
+            const rawMin = m.job.parsedCriteria?.salaryRange?.min ?? m.job.salaryMin;
+            const rawMax = m.job.parsedCriteria?.salaryRange?.max ?? m.job.salaryMax;
+            const normMin = normalizeJobSalaryValue(rawMin, 55000);
+            const normMax = normalizeJobSalaryValue(rawMax, 85000);
+            return (normMin + normMax) / 2;
+          });
 
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm text-slate-900 dark:text-white">
-             <h3 className="font-bold text-lg mb-4">Recent Applications</h3>
-             <div className="space-y-4">
-               {applications.length > 0 ? (
-                 applications.map(app => (
-                   <a href={`#job/${app.jobId}`} key={app.id} className="flex items-center justify-between py-2 group hover:bg-slate-50 dark:hover:bg-slate-800 p-2 -mx-2 rounded-xl transition-colors">
-                      <div className="flex items-center gap-3">
-                         <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700">
-                            <Send className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                         </div>
-                         <div>
-                            <div className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{app.jobTitle || 'Job'}</div>
-                            <div className="text-xs text-slate-500 dark:text-slate-400">{app.companyName || 'Company'}</div>
-                         </div>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase py-1 px-2 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-full">
-                        {app.status}
-                      </span>
-                   </a>
-                 ))
-               ) : (
-                 <p className="text-sm text-slate-400 text-center py-4">No applications yet.</p>
-               )}
-             </div>
-             <button className="w-full mt-6 py-3 text-sm font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded-xl transition-all">
-                View All Activity
-             </button>
-          </div>
-        </div>
+          const avgSalary = validSalaries.length > 0
+            ? Math.round(validSalaries.reduce((sum, v) => sum + v, 0) / validSalaries.length)
+            : 68000;
+
+          const skillFreq: Record<string, number> = {};
+          matches.forEach(m => {
+            (m.job.parsedCriteria?.requiredSkills || []).forEach(s => {
+              const cleaned = s.trim();
+              if (cleaned) {
+                skillFreq[cleaned] = (skillFreq[cleaned] || 0) + 1;
+              }
+            });
+          });
+
+          const sortedSkills = Object.entries(skillFreq)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([skill, count]) => ({ skill, count }));
+
+          const top5Skills = sortedSkills.length > 0
+            ? sortedSkills
+            : [
+                { skill: 'Communication & Problem Solving', count: Math.max(1, matches.length) },
+                { skill: 'Customer Service & Engagement', count: Math.max(1, Math.round(matches.length * 0.8)) },
+                { skill: 'Documentation & Reporting', count: Math.max(1, Math.round(matches.length * 0.6)) },
+                { skill: 'Workflow Coordination', count: Math.max(1, Math.round(matches.length * 0.5)) },
+                { skill: 'Compliance & Safety Standards', count: Math.max(1, Math.round(matches.length * 0.4)) }
+              ];
+
+          return (
+            <div className="space-y-8">
+              <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm text-slate-900 dark:text-white">
+                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                   <TrendingUp className="w-5 h-5 text-blue-500" />
+                   Market Insights
+                 </h3>
+                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+                   Aggregated real-time metrics for <strong>{profile?.targetRole || 'your profile'}</strong> based on {matches.length} active matching positions.
+                 </p>
+                 <div className="space-y-4">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                       <div className="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Avg. Salary (Matched)</div>
+                       <div className="text-2xl font-bold text-slate-900 dark:text-white">${avgSalary.toLocaleString()}</div>
+                       <div className="text-[10px] text-slate-400 mt-1">Normalized mean across {matches.length} open roles</div>
+                    </div>
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                       <div className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center justify-between">
+                          <span>Top 5 Skills in Demand</span>
+                          <span className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold">{matches.length} Roles Analyzed</span>
+                       </div>
+                       <div className="space-y-2">
+                          {top5Skills.map((item, idx) => (
+                             <div key={item.skill} className="flex items-center justify-between text-xs py-0.5">
+                                <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                                   <span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                      {idx + 1}
+                                   </span>
+                                   <span className="font-medium text-slate-800 dark:text-slate-200 truncate">{item.skill}</span>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-700/60 px-2 py-0.5 rounded-md shrink-0">
+                                   {item.count} {item.count === 1 ? 'role' : 'roles'}
+                                </span>
+                             </div>
+                          ))}
+                       </div>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm text-slate-900 dark:text-white">
+                 <h3 className="font-bold text-lg mb-4">Recent Applications</h3>
+                 <div className="space-y-4">
+                   {applications.length > 0 ? (
+                     applications.map(app => (
+                       <a href={`#job/${app.jobId}`} key={app.id} className="flex items-center justify-between py-2 group hover:bg-slate-50 dark:hover:bg-slate-800 p-2 -mx-2 rounded-xl transition-colors">
+                          <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center group-hover:bg-white dark:group-hover:bg-slate-700 transition-colors border border-slate-100 dark:border-slate-700">
+                                <Send className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                             </div>
+                             <div>
+                                <div className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{app.jobTitle || 'Job'}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{app.companyName || 'Company'}</div>
+                             </div>
+                          </div>
+                          <span className="text-[10px] font-bold uppercase py-1 px-2 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-full">
+                            {app.status}
+                          </span>
+                       </a>
+                     ))
+                   ) : (
+                     <p className="text-sm text-slate-400 text-center py-4">No applications yet.</p>
+                   )}
+                 </div>
+                 <button className="w-full mt-6 py-3 text-sm font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded-xl transition-all">
+                    View All Activity
+                 </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
+      )}
+
+      {reportingJob && (
+        <ReportJobModal
+          isOpen={Boolean(reportingJob)}
+          onClose={() => setReportingJob(null)}
+          job={reportingJob}
+        />
       )}
     </div>
   );

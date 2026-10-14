@@ -11,7 +11,8 @@ import {
   serverTimestamp, orderBy, updateDoc, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { Job, JobStatus, CompanyClaimRequest, CompanyRecruiterInvite } from '../types';
+import { Job, JobStatus, CompanyClaimRequest, CompanyRecruiterInvite, CulturalValuesBlueprint } from '../types';
+import { RecruiterCultureMatrix } from '../components/profile/RecruiterCultureMatrix';
 
 interface RecruiterMember {
   uid: string;
@@ -28,8 +29,24 @@ export const CompanyManagement = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Active Tab: 'details' | 'team' | 'jobs'
-  const [activeTab, setActiveTab] = useState<'details' | 'team' | 'jobs'>('details');
+  // Active Tab: 'details' | 'team' | 'jobs' | 'culture'
+  const [activeTab, setActiveTab] = useState<'details' | 'team' | 'jobs' | 'culture'>('details');
+  const [companyBlueprint, setCompanyBlueprint] = useState<CulturalValuesBlueprint | undefined>(undefined);
+
+  const handleSaveCompanyBlueprint = async (blueprint: CulturalValuesBlueprint) => {
+    if (!companyId) return;
+    try {
+      await updateDoc(doc(db, 'companies', companyId), {
+        culturalValuesBlueprint: blueprint,
+        updatedAt: serverTimestamp()
+      });
+      setCompanyBlueprint(blueprint);
+      setSuccessMessage('Company Culture & Recruiter Blueprint saved successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to save company blueprint:', err);
+    }
+  };
 
   // Company Profile State
   const [companyProfile, setCompanyProfile] = useState({
@@ -394,7 +411,26 @@ export const CompanyManagement = () => {
         >
           <Briefcase className="w-4 h-4" /> Job Requisitions ({companyJobs.length})
         </button>
+
+        <button
+          onClick={() => setActiveTab('culture')}
+          className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${
+            activeTab === 'culture'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-indigo-500" /> Culture & Recruiter Blueprint
+        </button>
       </div>
+
+      {activeTab === 'culture' && (
+        <RecruiterCultureMatrix
+          role="companyOwner"
+          blueprint={companyBlueprint}
+          onSaveBlueprint={handleSaveCompanyBlueprint}
+        />
+      )}
 
       {activeTab === 'details' && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm">

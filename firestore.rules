@@ -51,6 +51,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
     }
 
+    // Collection Group rule for Candidate Ingested Jobs Auto-Discovery
+    match /{path=**}/ingestedJobs/{jobId} {
+      allow read: if isAdmin();
+    }
+
     // Companies
     match /companies/{companyId} {
       allow read: if isSignedIn();
@@ -61,8 +66,16 @@ service cloud.firestore {
 
     // Job Postings
     match /jobs/{jobId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSignedIn(); 
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['flaggedForReview', 'reportCount']);
+    }
+
+    // Job Discrepancy & Moderation Reports
+    match /job_reports/{reportId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.reporterUid == request.auth.uid);
+      allow create: if true;
+      allow update, delete: if isAdmin();
     }
 
     // Applications (Deterministic Dedup & Role Boundaries)
@@ -101,6 +114,12 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Recruiter Leads (Auto-discovered and Mass-Ingested Outreach Leads)
+    match /recruiter_leads/{leadId} {
+      allow read, write: if isAdmin();
+      allow create: if isSignedIn();
+    }
+
     // Company Claim Requests
     match /company_claim_requests/{requestId} {
       allow read: if isSignedIn() && (
@@ -123,6 +142,10 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow update: if isSignedIn();
       allow delete: if isSignedIn();
+    }
+    // Autocomplete cache (Publicly accessible for cache hits/misses)
+    match /autocomplete_cache/{query} {
+      allow read, write: if true;
     }
   }
 }

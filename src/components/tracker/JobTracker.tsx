@@ -19,6 +19,11 @@ interface IngestedJob {
   companyName: string;
   description: string;
   requirements: string;
+  companyOverview?: string | null;
+  eeoStatement?: string | null;
+  clearanceOrExportControl?: string | null;
+  minimumQualifications?: string | null;
+  preferredQualifications?: string | null;
   location: string;
   workplaceType: 'Remote' | 'Hybrid' | 'On-Site';
   salaryMin?: number;
@@ -141,6 +146,18 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
     message: ''
   });
 
+  // Auto-Detection & Revision / Specific Import Modal State
+  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+  const [pendingJobData, setPendingJobData] = useState<any>(null);
+  const [revisedTitle, setRevisedTitle] = useState('');
+  const [revisedCompany, setRevisedCompany] = useState('');
+  const [revisedLocation, setRevisedLocation] = useState('');
+  const [revisedSalaryMin, setRevisedSalaryMin] = useState<number | ''>('');
+  const [revisedSalaryMax, setRevisedSalaryMax] = useState<number | ''>('');
+  const [revisedWorkplaceType, setRevisedWorkplaceType] = useState<'Remote' | 'Hybrid' | 'On-Site'>('Remote');
+  const [revisedSourceBoard, setRevisedSourceBoard] = useState('Indeed Job Board');
+  const [resolvedUrlState, setResolvedUrlState] = useState('');
+
   // Detail View State
   const [selectedJob, setSelectedJob] = useState<IngestedJob | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<'insights' | 'chat' | 'resume'>('insights');
@@ -237,11 +254,86 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
 
       const jobData = await response.json();
       
-      // Canonicalize URL and deterministically extract stable job document identifier
-      const canonicalUrl = resolvedUrl ? canonicalizeJobUrl(resolvedUrl) : '';
-      const jobDocId = extractJobIdentifier(canonicalUrl || resolvedUrl, resolvedText || pdfFileName || jobData.description || jobData.title);
+      setPendingJobData(jobData);
+      setRevisedTitle(jobData.title || '');
+      setRevisedCompany(jobData.companyName || '');
+      setRevisedLocation(jobData.location || '');
+      setRevisedSalaryMin(jobData.salaryMin ?? '');
+      setRevisedSalaryMax(jobData.salaryMax ?? '');
+      setRevisedWorkplaceType(jobData.workplaceType || 'Remote');
+      setRevisedSourceBoard(jobData.sourceBoard || (jobData.autoDetectedFormat === 'indeed' ? 'Indeed Job Board' : 'Direct Employer'));
+      setResolvedUrlState(resolvedUrl);
+      setIsIngesting(false);
+      setIsRevisionModalOpen(true);
+      return;
 
-      // 1. Save to Candidate's Personal Ingested Tracker under users/{uid}/ingestedJobs/{jobDocId}
+      // Discovered Recruiter Lead generation for Admin Outreach
+      if (jobData.recruiterInfo && (jobData.recruiterInfo.email || jobData.recruiterInfo.name || jobData.recruiterInfo.firmName)) {
+        try {
+          const emailId = (jobData.recruiterInfo.email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const fallbackId = `${jobData.recruiterInfo.name || 'recruiter'}_${jobData.recruiterInfo.firmName || jobData.companyName || 'agency'}`.toLowerCase().replace(/[^a-z0-9]/g, '_');
+          const leadId = emailId || fallbackId;
+          const leadRef = doc(db, 'recruiter_leads', leadId);
+          const leadPayload = sanitizeFirestorePayload({
+            recruiterName: jobData.recruiterInfo.name || 'Discovered Recruiter',
+            recruiterEmail: jobData.recruiterInfo.email || null,
+            recruiterPhone: jobData.recruiterInfo.phone || null,
+            firmName: jobData.recruiterInfo.firmName || jobData.companyName,
+            clientName: jobData.recruiterInfo.clientName || null,
+            sourceBoard: jobData.sourceBoard || (ingestionTab === 'dice_email' ? 'Dice Recruiter Email' : 'Candidate Ingestion'),
+            jobTitle: jobData.title,
+            discoveredByUid: user.uid,
+            discoveredByEmail: user.email,
+            status: 'discovered',
+            createdAt: serverTimestamp(),
+            lastDiscoveredAt: serverTimestamp()
+          });
+          await setDoc(leadRef, leadPayload, { merge: true });
+        } catch (leadErr) {
+          console.warn("Could not save recruiter lead for admin outreach:", leadErr);
+        }
+      }
+
+      setUrl('');
+      setPastedText('');
+      setPdfFile(null);
+      setPdfBase64(null);
+      setPdfFileName(null);
+      
+      /* setSelectedJob({ id: jobDocId, ...cleanPayload }); */
+      setActiveDetailTab('insights');
+      setChatMessages([]);
+      setTailoredResume(null);
+
+    } catch (err: any) {
+      console.error(err);
+      setIngestionError(err.message || 'Failed to parse the job details. Please try pasting the text or re-uploading the PDF.');
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  // Handle Confirm Ingest after Revision / Specific Import Review
+  const handleConfirmIngest = async () => {
+    if (!user || !pendingJobData) return;
+    setIsIngesting(true);
+    setIsRevisionModalOpen(false);
+
+    try {
+      const jobData = {
+        ...pendingJobData,
+        title: revisedTitle,
+        companyName: revisedCompany,
+        location: revisedLocation,
+        salaryMin: revisedSalaryMin === '' ? undefined : Number(revisedSalaryMin),
+        salaryMax: revisedSalaryMax === '' ? undefined : Number(revisedSalaryMax),
+        workplaceType: revisedWorkplaceType,
+        sourceBoard: revisedSourceBoard
+      };
+
+      const canonicalUrl = resolvedUrlState ? canonicalizeJobUrl(resolvedUrlState) : '';
+      const jobDocId = extractJobIdentifier(canonicalUrl || resolvedUrlState, pendingJobData.description || jobData.title);
+
       const jobRef = doc(db, `users/${user.uid}/ingestedJobs`, jobDocId);
       const rawPayload: any = {
         title: jobData.title || 'Unknown Role',
@@ -259,7 +351,7 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
         extractedId: jobDocId,
         canonicalUrl: canonicalUrl || undefined,
         status: 'ingested',
-        sourceBoard: jobData.sourceBoard || (ingestionTab === 'dice_email' ? 'Dice Recruiter Email' : (ingestionTab === 'govjobs' ? 'GovernmentJobs / NEOGOV' : undefined)),
+        sourceBoard: jobData.sourceBoard,
         jobNumber: jobData.jobNumber || undefined,
         department: jobData.department || undefined,
         recruiterInfo: jobData.recruiterInfo || undefined,
@@ -272,7 +364,6 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
       const cleanPayload = sanitizeFirestorePayload(rawPayload);
       await setDoc(jobRef, cleanPayload, { merge: true });
 
-      // 2. Canonical Recruiter/ATS Parity: Mirror to global canonical `jobs/{jobDocId}` collection
       try {
         const globalJobRef = doc(db, 'jobs', jobDocId);
         const leadId = (jobData.recruiterInfo?.email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -283,7 +374,7 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
           posterFirmId: jobData.recruiterInfo?.firmName ? user.uid : undefined,
           posterFirmName: jobData.recruiterInfo?.firmName || undefined,
           recruiterInfo: jobData.recruiterInfo || undefined,
-          sourceBoard: jobData.sourceBoard || (ingestionTab === 'dice_email' ? 'Dice Recruiter Email' : (ingestionTab === 'govjobs' ? 'GovernmentJobs / NEOGOV' : 'Candidate Ingestion')),
+          sourceBoard: jobData.sourceBoard,
           title: jobData.title || 'Position',
           description: jobData.description || '',
           requirements: jobData.requirements || '',
@@ -318,38 +409,12 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
         console.warn("Could not mirror to canonical jobs collection:", mirrorErr);
       }
 
-      // Discovered Recruiter Lead generation for Admin Outreach
-      if (jobData.recruiterInfo?.email) {
-        try {
-          const leadId = (jobData.recruiterInfo.email || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
-          const leadRef = doc(db, 'recruiter_leads', leadId);
-          const leadPayload = sanitizeFirestorePayload({
-            recruiterName: jobData.recruiterInfo.name || 'Unknown Recruiter',
-            recruiterEmail: jobData.recruiterInfo.email,
-            recruiterPhone: jobData.recruiterInfo.phone || null,
-            firmName: jobData.recruiterInfo.firmName || jobData.companyName,
-            clientName: jobData.recruiterInfo.clientName || null,
-            sourceBoard: jobData.sourceBoard || 'Dice Recruiter Email',
-            jobTitle: jobData.title,
-            discoveredByUid: user.uid,
-            discoveredByEmail: user.email,
-            status: 'discovered',
-            createdAt: serverTimestamp(),
-            lastDiscoveredAt: serverTimestamp()
-          });
-          await setDoc(leadRef, leadPayload, { merge: true });
-        } catch (leadErr) {
-          console.warn("Could not save recruiter lead for admin outreach:", leadErr);
-        }
-      }
-
       setUrl('');
       setPastedText('');
       setPdfFile(null);
       setPdfBase64(null);
       setPdfFileName(null);
       
-      // Select the newly ingested job automatically to load details
       setSelectedJob({ id: jobDocId, ...cleanPayload });
       setActiveDetailTab('insights');
       setChatMessages([]);
@@ -357,7 +422,7 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
 
     } catch (err: any) {
       console.error(err);
-      setIngestionError(err.message || 'Failed to parse the job details. Please try pasting the text or re-uploading the PDF.');
+      setIngestionError(err.message || 'Failed to save revised job posting.');
     } finally {
       setIsIngesting(false);
     }
@@ -1560,11 +1625,73 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-5">
+                      <div className="space-y-6">
+                        {/* Minimum vs Preferred Qualifications Separate Panels */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {selectedJob.minimumQualifications && (
+                            <div className="space-y-2 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
+                              <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Minimum / Required Qualifications
+                              </h5>
+                              <div className="text-xs text-slate-700 dark:text-slate-300 space-y-1.5 max-h-48 overflow-y-auto leading-relaxed">
+                                {renderSimpleMarkdown(selectedJob.minimumQualifications)}
+                              </div>
+                            </div>
+                          )}
+
+                          {selectedJob.preferredQualifications && (
+                            <div className="space-y-2 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
+                              <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> Preferred / Nice-to-Have Qualifications
+                              </h5>
+                              <div className="text-xs text-slate-700 dark:text-slate-300 space-y-1.5 max-h-48 overflow-y-auto leading-relaxed">
+                                {renderSimpleMarkdown(selectedJob.preferredQualifications)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Company Overview & EEO Statement Panels */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {selectedJob.companyOverview && (
+                            <div className="space-y-2 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                              <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5 text-blue-500" /> About the Company
+                              </h5>
+                              <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 max-h-48 overflow-y-auto leading-relaxed">
+                                {renderSimpleMarkdown(selectedJob.companyOverview)}
+                              </div>
+                            </div>
+                          )}
+
+                          {selectedJob.eeoStatement && (
+                            <div className="space-y-2 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                              <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> EEO & Diversity Statement
+                              </h5>
+                              <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 max-h-48 overflow-y-auto leading-relaxed">
+                                {renderSimpleMarkdown(selectedJob.eeoStatement)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Required IDs & Export Control */}
+                        {selectedJob.clearanceOrExportControl && (
+                          <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 rounded-2xl space-y-2">
+                            <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                              <Key className="w-3.5 h-3.5 text-amber-500" /> Security Clearance & Export Control Compliance
+                            </h5>
+                            <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                              {renderSimpleMarkdown(selectedJob.clearanceOrExportControl)}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Role Description Panel */}
                         {selectedJob.description && (
                           <div className="space-y-2">
-                            <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Description</h5>
+                            <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Full Description</h5>
                             <div className="prose dark:prose-invert max-w-none text-xs text-slate-600 dark:text-slate-400 space-y-2 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 leading-relaxed">
                               {renderSimpleMarkdown(selectedJob.description)}
                             </div>
@@ -1574,7 +1701,7 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
                         {/* Requirements Panel */}
                         {selectedJob.requirements && (
                           <div className="space-y-2">
-                            <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Requirements & Qualifications</h5>
+                            <h5 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">General Requirements & Qualifications</h5>
                             <div className="prose dark:prose-invert max-w-none text-xs text-slate-600 dark:text-slate-400 space-y-2 max-h-60 overflow-y-auto bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 leading-relaxed">
                               {renderSimpleMarkdown(selectedJob.requirements)}
                             </div>
@@ -2047,6 +2174,131 @@ export const JobTracker = ({ profile }: JobTrackerProps) => {
             </motion.div>
           </div>
         )}
+
+      {/* Auto-Detection & Revision / Specific Import Modal */}
+      {isRevisionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in text-left">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] w-full max-w-2xl p-6 sm:p-8 space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-extrabold text-[10px] uppercase tracking-widest border border-indigo-200 dark:border-indigo-800">
+                    Auto-Detected: {pendingJobData?.autoDetectedFormat || 'Indeed / Generic'}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Specific Import & Revision</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">Review & Revise Extracted Posting</h3>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                  Verify and adjust parsed fields before saving to your active application tracker.
+                </p>
+              </div>
+              <button onClick={() => setIsRevisionModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg cursor-pointer">✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Job Title</label>
+                  <input
+                    type="text"
+                    value={revisedTitle}
+                    onChange={e => setRevisedTitle(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Company Name</label>
+                  <input
+                    type="text"
+                    value={revisedCompany}
+                    onChange={e => setRevisedCompany(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={revisedLocation}
+                    onChange={e => setRevisedLocation(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Workplace Type</label>
+                  <select
+                    value={revisedWorkplaceType}
+                    onChange={e => setRevisedWorkplaceType(e.target.value as any)}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="Remote">Remote</option>
+                    <option value="Hybrid">Hybrid</option>
+                    <option value="On-Site">On-Site</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Salary Min ($)</label>
+                  <input
+                    type="number"
+                    value={revisedSalaryMin}
+                    onChange={e => setRevisedSalaryMin(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="e.g. 131200"
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Salary Max ($)</label>
+                  <input
+                    type="number"
+                    value={revisedSalaryMax}
+                    onChange={e => setRevisedSalaryMax(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="e.g. 196800"
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Source Board</label>
+                  <select
+                    value={revisedSourceBoard}
+                    onChange={e => setRevisedSourceBoard(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="Indeed Job Board">Indeed Job Board</option>
+                    <option value="Dice Recruiter Email">Dice Recruiter Email</option>
+                    <option value="GovernmentJobs / NEOGOV">GovernmentJobs / NEOGOV</option>
+                    <option value="LinkedIn">LinkedIn</option>
+                    <option value="Direct Employer">Direct Employer</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsRevisionModalOpen(false)}
+                className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmIngest}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+              >
+                Confirm & Save to Tracker
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </AnimatePresence>
     </div>
   );

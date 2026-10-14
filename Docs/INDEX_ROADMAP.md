@@ -2,8 +2,8 @@
 
 This file tracks all ongoing and planned roadmaps.
 
-## Active Roadmaps
-- (No active roadmaps currently open)
+## Active & Planned Roadmaps
+- **Global Ingestion Normalization Pipeline (Approach C)**: Pre-storage ingestion and batch-import normalization pipeline to sanitize, scrub trailing whitespace, collapse excessive newlines, and standardize formatting across all incoming job postings prior to Firestore persistence. Scheduled for rollout upon the upcoming test postings database wipe.
 
 ## Completed Roadmaps
 - **Deduplication, Validation, and Merge Engine**: `Docs/RoadMaps/Dedup_Validation_Merge_Engine.md` (Implemented)

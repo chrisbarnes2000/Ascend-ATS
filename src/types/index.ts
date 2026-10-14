@@ -13,6 +13,38 @@ export interface UserSettings {
   notifications: boolean;
 }
 
+export interface IngestedJobData {
+  title: string;
+  companyName: string;
+  description: string;
+  requirements: string;
+  location: string;
+  workplaceType: 'Remote' | 'Hybrid' | 'On-Site';
+  salaryMin: number;
+  salaryMax: number;
+  requiredSkills: string[];
+  preferredSkills: string[];
+  benefits: string[];
+  extractedId: string;
+  isAiEnhanced: boolean;
+  companyOverview: string | null;
+  eeoStatement: string | null;
+  clearanceOrExportControl: string | null;
+  minimumQualifications: string | null;
+  preferredQualifications: string | null;
+  insights: {
+    interviewQuestions: Array<{ question: string; answer: string }>;
+    unstatedExpectations: string[];
+    matchStrategy: string;
+  };
+  jobNumber?: string;
+  department?: string;
+  salaryType?: string;
+  expiresAt?: string;
+  sourceBoard?: string;
+  recruiterInfo?: any;
+}
+
 export interface AppUser {
   uid: string;
   email: string;
@@ -71,6 +103,35 @@ export interface ProfileSkill {
   credlyUrl?: string;
 }
 
+export interface CulturalValuesBlueprint {
+  topValues: string[]; // Selected from Fast Company 26 Values IDs
+  cultureAddNarrative?: string;
+  kindnessVsNicenessStance?: string;
+  ecosystemStance?: string;
+  uncomfortableTransparencyPolicy?: string;
+  pacingRestPolicy?: string;
+  recruiterSlaDays?: number;
+}
+
+export interface InterviewDebrief {
+  id: string;
+  interviewDate: string;
+  roundName: string;
+  candidateRating?: number;
+  cultureAddImpressions?: string;
+  perceivedTransparency?: string;
+  competingOffersStatus?: string;
+  managerNotes?: string;
+  submittedAt: any;
+}
+
+export interface TargetLocation {
+  placeId: string;
+  description: string;
+  commuteConstraintMinutes?: number;
+  distanceConstraintMiles?: number;
+}
+
 export interface JobSeekerProfile {
   personalInfo: {
     firstName: string;
@@ -85,7 +146,8 @@ export interface JobSeekerProfile {
   professionalSummary: string;
   targetRole: string;
   targetIndustry?: string;
-  targetLocations?: string[];
+  targetIndustries?: string[];
+  targetLocations?: TargetLocation[];
   preferredWorkplaceType?: 'Remote' | 'Hybrid' | 'On-Site' | 'Any';
   preferredLocations?: string[];
   targetSalary: number;
@@ -94,6 +156,13 @@ export interface JobSeekerProfile {
   skills: ProfileSkill[];
   resumes: { url: string; name: string; uploadedAt: Date }[];
   targetBenefits?: string[];
+  culturalPreferences?: string[]; // Selected Fast Company cultural value IDs
+  recruiterPreferences?: {
+    preferredSpecialties?: string[];
+    communicationFrequency?: 'Daily' | 'Weekly' | 'As Needed' | 'Milestone Only';
+    expectedSalaryMin?: number;
+    requiresVideoCall?: boolean;
+  };
   parsedData?: any;
   privacy: PrivacySettings;
   resumePreviewUrl?: string;
@@ -170,6 +239,7 @@ export interface RecruiterProfile {
   isPublic: boolean;
   yearsExperience?: number;
   contactPreference?: 'email' | 'linkedin' | 'phone';
+  culturalValuesBlueprint?: CulturalValuesBlueprint;
   updatedAt?: any;
 }
 
@@ -216,11 +286,12 @@ export interface Company {
   recruiterUids?: string[];
   pendingInviteCodes?: string[];
   adminEmails?: string[];
+  culturalValuesBlueprint?: CulturalValuesBlueprint;
   updatedAt?: any;
 }
 
 export interface MaterialShift {
-  field: 'salaryMax' | 'salaryMin' | 'requirements' | 'title' | 'workplaceType' | 'location';
+  field: 'salaryMax' | 'salaryMin' | 'requirements' | 'title' | 'workplaceType' | 'location' | 'companyName' | 'posterFirmName';
   description: string;
   severity: 'low' | 'moderate' | 'high_bait_and_switch';
   riskPoints: number;
@@ -244,6 +315,8 @@ export interface JobRevision {
     salaryMax?: number;
     workplaceType?: string;
     location?: string;
+    companyName?: string;
+    posterFirmName?: string;
   };
   newValues: {
     title?: string;
@@ -253,6 +326,8 @@ export interface JobRevision {
     salaryMax?: number;
     workplaceType?: string;
     location?: string;
+    companyName?: string;
+    posterFirmName?: string;
   };
   materialChangeDetected?: boolean;
   materialChangeDetails?: string[];
@@ -327,6 +402,8 @@ export interface Job {
     willingToConsiderNotes?: string;
     settlingOptions?: string[];
   };
+  culturalValuesPillars?: string[]; // Selected Fast Company cultural value IDs
+  cultureAddHighlights?: string[];
   status: JobStatus;
   createdAt: Date | any;
   updatedAt?: Date | any;
@@ -342,6 +419,35 @@ export interface Job {
   requisitionType?: 'active_headcount' | 'growth_replacement' | 'market_research' | 'passive_pool';
   authenticityScore?: number;
   applicationCount?: number;
+  flaggedForReview?: boolean;
+  reportCount?: number;
+}
+
+export type JobReportReason = 
+  | 'incorrect_company'
+  | 'incorrect_poster'
+  | 'misleading_text'
+  | 'expired_or_closed'
+  | 'scam_or_suspicious'
+  | 'other';
+
+export interface JobReport {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  companyName: string;
+  posterFirmName?: string;
+  reporterUid?: string;
+  reporterEmail?: string;
+  reporterRole: 'candidate' | 'recruiter' | 'admin' | 'anonymous';
+  reason: JobReportReason;
+  notes?: string;
+  proposedCompanyName?: string;
+  proposedPosterFirmName?: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  createdAt: any;
+  resolvedAt?: any;
+  resolvedBy?: string;
 }
 
 export interface Application {
@@ -360,6 +466,7 @@ export interface Application {
   }[];
   jobTitle?: string;
   companyName?: string;
+  interviewDebriefs?: InterviewDebrief[];
 }
 
 export interface Communication {
@@ -368,4 +475,21 @@ export interface Communication {
   content: string;
   timestamp: Date;
   senderId: string;
+}
+
+export interface RecruiterLead {
+  id: string;
+  recruiterName: string;
+  recruiterEmail?: string | null;
+  recruiterPhone?: string | null;
+  firmName?: string;
+  clientName?: string | null;
+  sourceBoard?: string;
+  jobTitle?: string;
+  status: 'discovered' | 'invited' | 'contacted' | 'claimed';
+  discoveredByUid?: string;
+  discoveredByEmail?: string;
+  linkedInUrl?: string | null;
+  relationship?: string | null;
+  createdAt: any;
 }

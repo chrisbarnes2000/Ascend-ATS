@@ -49,6 +49,7 @@ interface GovJobData {
     phone?: string;
     firmName?: string;
     firmWebsite?: string;
+    linkedInUrl?: string;
     clientName?: string;
     workAuth?: string;
     contractType?: string;
@@ -522,22 +523,35 @@ export const GovJobsBridge: React.FC<GovJobsBridgeProps> = ({
                   )}
                 </div>
 
-                {/* Recruiter & Outreach Details (Dice / Email Mode) */}
+                {/* Recruiter & Outreach Details (Dice & GovJobs Mode) */}
                 {ingestedJob.recruiterInfo && (
                   <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
                     <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-amber-400" /> Recruiter Outreach Details
+                      <Mail className="w-3.5 h-3.5 text-amber-400" /> Outreach & Process Flow Manager
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       {ingestedJob.recruiterInfo.name && (
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Recruiter Name</span>
+                          <span className="text-[10px] text-slate-400 block">Outreach / Recruiter Manager</span>
                           <span className="font-bold text-slate-200">{ingestedJob.recruiterInfo.name}</span>
+                        </div>
+                      )}
+                      {ingestedJob.recruiterInfo.linkedInUrl && (
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">LinkedIn Connection</span>
+                          <a 
+                            href={ingestedJob.recruiterInfo.linkedInUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="font-bold text-sky-400 hover:underline flex items-center gap-1"
+                          >
+                            <Globe className="w-3 h-3 text-sky-400" /> Connect on LinkedIn
+                          </a>
                         </div>
                       )}
                       {ingestedJob.recruiterInfo.firmName && (
                         <div>
-                          <span className="text-[10px] text-slate-400 block">Staffing Firm</span>
+                          <span className="text-[10px] text-slate-400 block">Organization / Agency</span>
                           <span className="font-bold text-slate-200">{ingestedJob.recruiterInfo.firmName}</span>
                         </div>
                       )}

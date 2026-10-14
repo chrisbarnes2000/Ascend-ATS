@@ -4,6 +4,482 @@ This internal engineering log records granular development actions, architecture
 
 ---
 
+## [0.5.30-dev.1] - 2026-10-13
+### Implemented Approach A: Multi-Provider Cascading Logo Engine & Tokenized Word Matching
+- **Context & Diagnostic Finding**:
+  - In `JobSeekerDashboard.tsx` and employer detail surfaces, company logos were falling back to a generic gray `<Briefcase>` SVG icon.
+  - Root cause: `CompanyLogo.tsx` relied strictly on `logo.clearbit.com`, which deprecated unauthenticated free public access and returns 403/404/CORS blocks in browser sandboxes. Additionally, `domainMap` only supported 11 hardcoded lowercase strings; names like `"Tacoma Public Utilities"`, `"City of Tacoma - Tacoma Public Utilities (TPU)"`, or `"The Boeing Company"` failed the exact lookup and fell back to broken domains.
+- **Implementation of Approach A (`src/utils/companyLogoResolver.ts`)**:
+  - **Tokenized Word & Alias Matching**:
+    - Scrubs corporate noise tokens (`inc`, `llc`, `corp`, `corporation`, `co`, `company`, `ltd`, `holdings`, `services`, `group`, `technologies`, `systems`, etc.) and grammatical stop words (`of`, `the`, `and`, `for`, `at`, `in`).
+    - Resolves known municipal, regional, and national employers:
+      - `"TPU"`, `"Tacoma Public Utilities"`, `"Tacoma Power"`, `"Tacoma Water"` $\rightarrow$ `mytpu.org`
+      - `"City of Tacoma"`, `"Tacoma WA"` $\rightarrow$ `cityoftacoma.org`
+      - `"Pierce County"` $\rightarrow$ `piercecountywa.gov`
+      - `"Salal Credit Union"`, `"Salal CU"` $\rightarrow$ `salalcu.org`
+      - `"Boeing"`, `"The Boeing Company"` $\rightarrow$ `boeing.com`
+      - `"Bank of America"`, `"BofA"` $\rightarrow$ `bankofamerica.com`
+      - `"Microsoft"` $\rightarrow$ `microsoft.com`, `"Amazon"` / `"AWS"` $\rightarrow$ `amazon.com`, `"Google"` $\rightarrow$ `google.com`, etc.
+    - Title-derived employer brand inference: When `companyName` is empty, `"Confidential Client"`, or generic, infers the employer brand from `jobTitle`.
+  - **Cascading Multi-Tier Resolution State Machine**:
+    - **Tier 1 (Primary)**: Google High-Resolution Favicon CDN (`https://www.google.com/s2/favicons?domain=${domain}&sz=128`), providing instant, authenticated-free icons for `.gov`, `.org`, and `.com` domains.
+    - **Tier 2 (Secondary)**: UI-Avatars lettermark fallback (`https://ui-avatars.com/api/?name=${initials}&background=${hex}&color=ffffff&bold=true&size=128`).
+    - **Tier 3 (Local Offline Monogram)**: Deterministic, high-contrast SVG Lettermark monogram generated from company initials with WCAG AA compliant color gradients derived from string hash. Eliminates generic gray briefcase icons completely.
+- **Component Enhancements**:
+  - `src/components/CompanyLogo.tsx`: Refactored with cascading error state machine (`primary` $\rightarrow$ `secondary` $\rightarrow$ `monogram`), confidential client lock state, and lazy loading.
+  - `src/pages/JobSeekerDashboard.tsx`: Passed `jobTitle={job.title}` to `<CompanyLogo>` for intelligent title-derived brand inference.
+  - `src/components/CleanEmployerContactCard.tsx`: Replaced static building icon with `<CompanyLogo companyName={displayEmployerName} size="sm" />`.
+  - `src/services/jobIngestion.service.ts`: Updated `fetchCompanyLogo` to use `resolveCompanyBranding`.
+  - Bumped `package.json` and `src/config.ts` version to `0.5.30`.
+- **Automated Verification & Scorecard Audit**:
+  - Created `tests/unit/companyLogoResolver.test.ts` covering 7 test scenarios (regional/national alias matching, title-derived brand inference, noise token scrubbing, monogram initials generation, deterministic WCAG AA colors, payload generation, and boundary conditions).
+  - Registered in `tests/runAllTests.ts`. 19/19 test suites passed with 100% green assertions.
+  - Logged Audit Record `AUD-2026-004` in `Docs/INDEX_AUDIT.md`. Updated `Docs/STRUCTURE.md`.
+
+---
+
+## [0.5.29-dev.2] - 2026-10-13
+### Implemented Approach A: Cohesive Paragraph Buffering & Pre-Parser Whitespace Normalization
+- **Context & Problem Statement**:
+  - In `JobDescription.tsx` / `JobContentPreview.tsx`, job descriptions with word-wrapped lines or copy-pasted text were being split line-by-line into separate block spans (`<span className="block my-3">`).
+  - This resulted in severe vertical spacing fragmentation (e.g. 8 broken span elements for a single 8-line paragraph), huge gaps, unnatural breaks between sentences, and excess blank lines.
+- **Implementation of Approach A (`src/utils/textWhitespaceNormalizer.ts`)**:
+  - **Pre-Parser Whitespace Normalization (`normalizeJobContentWhitespace`)**:
+    - Converts Windows CRLF (`\r\n`) and legacy CR (`\r`) to standard Unix newlines (`\n`).
+    - Strips non-breaking spaces (`\u00A0`, `\u2007`, `\u202F`) and zero-width non-printing characters (`\u200B-\u200D`, `\uFEFF`).
+    - Scrubs trailing horizontal spaces and tabs from every individual line (`line.trimEnd()`).
+    - Collapses excessive blank lines (`\n{3,}`) down to standard double newline paragraph delimiters (`\n\n`), preventing giant blank spaces while preserving intentional paragraph breaks.
+    - Collapses excessive repeated horizontal whitespace inside lines while respecting code block indentation.
+  - **Cohesive Paragraph Buffering (`parseCohesiveBlocks`)**:
+    - Buffers consecutive wrapped text lines into unified paragraphs instead of fragmenting into separate block elements.
+    - Replaces DOM fragmentation (8 separate `<span className="block my-3">`) with a single cohesive `<span className="block my-2.5 sm:my-3">` element containing the complete paragraph.
+    - Preserves 100% of markdown and rich text formatting: headings (`#`, `##`, `###`, `####`), bullet lists (`*`, `-`, `•`, `+`), indented bullet continuation lines, numbered lists (`1.`, `2.`), blockquotes (`>`), code blocks (```` ``` ````), and horizontal rules (`---`).
+- **Component Integration (`src/components/JobContentPreview.tsx`)**:
+  - Refactored `renderRichSections()` to map over `parseCohesiveBlocks(content, maxLines)`, simplifying component logic, eliminating redundant state variables, and reducing file length to 436 lines.
+  - Enhanced `stripMarkdownFormatting` and `renderMarkdownMode` with pre-parser normalization so raw text and markdown views are clean and free of rogue control characters.
+  - Updated `STATIC_CONFIG.APP.VERSION` to `'0.5.29'` in `src/config.ts`.
+- **Roadmap Integration (Approach C)**:
+  - Documented **Global Ingestion Normalization Pipeline (Approach C)** in `Docs/INDEX_ROADMAP.md` as a planned pipeline phase scheduled for rollout upon the upcoming test postings database wipe.
+- **Automated Verification**:
+  - Created `tests/unit/textWhitespaceNormalizer.test.ts` covering 6 test scenarios (Unicode normalization, 8-line paragraph unification, multi-paragraph separation, full markdown preservation, raw text extraction, and boundary conditions).
+  - Wired into `tests/runAllTests.ts`. Full test suite passes with 100% green assertions.
+
+---
+
+## [0.5.29-dev.1] - 2026-10-13
+### Milestone Release Promotion & Location Requirements Sanitizer (TPU / City of Tacoma Hybrid Flagging)
+- **Milestone Release Cut [v0.5.29]**:
+  - Promoted unreleased engineering iterations `0.5.28-dev.1` through `0.5.28-dev.20` into public milestone `[0.5.29]` in `Docs/CHANGELOG.md`.
+  - Bumped `package.json` version from `0.5.28` to `0.5.29`.
+- **Location Requirements Sanitizer & Municipal Normalization (`src/utils/locationAndWorkplaceSanitizer.ts`)**:
+  - Hardened location normalization for municipal and utility entities (City of Tacoma, Tacoma Public Utilities / TPU, Tacoma Power, Tacoma Water, Pierce County) mapping them deterministically to `Tacoma, WA`.
+  - Expanded regex patterns for customer travel (`travel to customer`, `client site visits`, `field operations`) and partial in-office schedules (`partial in-office`, `telework agreement`, `office presence required`).
+  - Added deterministic override ensuring TPU / City of Tacoma roles with customer travel or partial in-office requirements are accurately categorized as **Hybrid** rather than deceptive "Remote" defaults.
+- **Visual Workplace & Requirement Badges (`JobSeekerDashboard.tsx` & `JobDescription.tsx`)**:
+  - Implemented high-contrast, accessible badges (`[HYBRID]` in purple, `[ON-SITE]` in amber, `[REMOTE]` in emerald) with specific requirement notices (e.g., `Partial In-Office`, `Travel Required`).
+  - Rendered dedicated travel requirement alert banners (`🚗 Travel to customer sites required`) whenever customer site visits are detected.
+  - Replaced hardcoded "Remote" tag in `JobDescription.tsx` with dynamic `locInfo` computed from `parseAndSanitizeLocationAndWorkplace(job)`.
+- **Automated Verification**:
+  - Added Test 5 to `tests/unit/locationAndWorkplaceSanitizer.test.ts` asserting TPU City of Tacoma role with customer travel/partial in-office overrides raw Remote tag to Hybrid (Tacoma, WA).
+  - Executed full test suite (`npm test`), linter (`tsc --noEmit`), and applet compilation (`compile_applet`) with 100% green status.
+
+---
+
+## [0.5.28-dev.20] - 2026-10-13
+### Added & Enhanced (Defensive Salary Sanitizer & Market Insights Top 5 In-Demand Skills Expansion)
+- **Problem Statement**: 
+  - Market Insights Average Matched Salary was severely skewed ($1,839,398) due to unnormalized cent-stored integers (e.g., $105,643.20 stored as 10564320 or $98,280 stored as 9828000) and unannualized hourly rates.
+  - Market Insights only displayed a single in-demand skill instead of a multi-ranked view.
+- **Architectural Solution & Remediation**:
+  - **`src/utils/salarySanitizer.ts`**:
+    - Created `normalizeJobSalaryValue` to detect and divide cent-stored salaries (>500,000 by 100), annualize hourly wages (<150 by 2080), clamp extreme database outliers [30k, 250k], and provide safe fallbacks.
+  - **`JobSeekerDashboard.tsx` & `JobDescription.tsx`**:
+    - Normalized salaries in Top Match cards and Job Details pages.
+    - Updated Market Insights Average Salary calculation to compute the true normalized mean across matching positions.
+    - Expanded Market Insights from 1 skill to **Top 5 Skills in Demand**, rendering numerical rank badges (1–5), skill titles, and role counts.
+  - **`tests/unit/salarySanitizer.test.ts` & `tests/runAllTests.ts`**:
+    - Added dedicated unit tests covering cent-stored conversion, hourly wage annualization, normal values, fallbacks, and boundary clamping.
+  - **Automated Verification**:
+    - 100% test suite pass across all suites, zero linter issues (`tsc --noEmit`), and clean applet compilation.
+
+## [0.5.28-dev.19] - 2026-10-13
+### Added & Enhanced (Sidebar Removal on Application Pipeline View & Dynamic Market Insights Aggregation)
+- **Problem Statement**: The Application Pipeline view required a clean, full-width canvas without the right-hand sidebar. Furthermore, Market Insights needed robust dynamic data aggregation rather than static placeholders.
+- **Architectural Solution & Remediation**:
+  - **`JobSeekerDashboard.tsx`**:
+    - Conditionally omitted the sidebar when `view === 'pipeline'`, allowing the application Kanban/table pipeline to occupy full width (`lg:col-span-3`).
+    - Implemented dynamic data aggregation for Market Insights: computing real rolling average salary ranges and top in-demand skills from active matching job postings.
+  - **Automated Verification**:
+    - Ran full test suite (`npm test`), linter (`tsc --noEmit`), and build compilation (`compile_applet`) with 100% green status and zero errors.
+
+## [0.5.28-dev.18] - 2026-10-13
+### Added & Enhanced (Candidate Job Ignore Option & Automatic Company Exclusion List Integration)
+- **Problem Statement**: Candidates needed exclusion lists for companies and industries so that when they indicate they are not interested in a role, the platform automatically adds the company to their privacy firewall exclusion list (`privacy.excludedCompanies`), preventing future postings from appearing without requiring repeated manual reporting.
+- **Architectural Solution & Remediation**:
+  - **`src/components/IgnoreJobModal.tsx`**:
+    - Integrated automated inclusion of the ignored job's company name into the user's Firestore profile privacy exclusion list (`privacy.excludedCompanies` via `arrayUnion`) when ignoring a role.
+    - Provided an explicit toggle option (`[x] Add "{companyName}" to Excluded Companies`) so candidates can choose to block future postings from that employer permanently.
+  - **Automated Verification**:
+    - Ran full test suite (`npm test`), linter (`tsc --noEmit`), and build compilation (`compile_applet`) with 100% green status and zero errors.
+
+## [0.5.28-dev.17] - 2026-10-13
+### Added & Enhanced (Company Logo Component with Clearbit Integration & Placeholder Fallback)
+- **Problem Statement**: Company logos (such as Bank of America and other enterprise employers) were either missing or failing to load correctly due to missing image sources or dead URLs, lacking a robust fallback to the standard placeholder icon.
+- **Architectural Solution & Remediation**:
+  - **`src/components/CompanyLogo.tsx`**:
+    - Created a dedicated `CompanyLogo` component featuring automated domain mapping (e.g. Bank of America → `bankofamerica.com`) and Clearbit logo fetching (`https://logo.clearbit.com/...`).
+    - Implemented a robust `onError` handler that gracefully falls back to the clean Briefcase placeholder icon whenever a company logo fails to load or cannot be found.
+  - **`JobSeekerDashboard.tsx`**:
+    - Integrated `CompanyLogo` into all top match cards.
+  - **Automated Verification**:
+    - Ran full unit test suite (`npm test`), linter (`tsc --noEmit`), and build compilation (`compile_applet`) with 100% green status and zero errors.
+
+## [0.5.28-dev.16] - 2026-10-13
+### Added & Enhanced (Mobile Top Match Card Compaction & Overhang Fix)
+- **Problem Statement**: Top match cards on mobile viewports suffered from right-side overhang (`w-full max-w-full overflow-hidden`), insufficient side padding, and oversized titles that caused text truncation or horizontal scrolling issues on small screens.
+- **Architectural Solution & Remediation**:
+  - **`JobSeekerDashboard.tsx` (Top Match Cards)**:
+    - Added explicit box-sizing and containment rules (`w-full max-w-full overflow-hidden box-border`) so cards stick strictly to their parent containers without right-side overhang.
+    - Responsive card padding (`p-4 sm:px-6 md:p-8`).
+    - Scaled down title font sizes (`text-base sm:text-lg md:text-xl`) and added `truncate` utility to fit smaller screens gracefully.
+  - **Automated Verification**:
+    - Ran full unit test suite (`npm test`), linter (`tsc --noEmit`), and build compilation (`compile_applet`) with 100% green status and zero errors.
+
+## [0.5.28-dev.15] - 2026-10-13
+### Added & Enhanced (Mobile-First Responsive Padding & Viewport Overhaul)
+- **Problem Statement**: Mobile viewports experienced cramped horizontal padding and fixed desktop container sizing (`w-[75vw]`), making content difficult to inspect and touch targets uncomfortably close to screen edges.
+- **Architectural Solution & Remediation**:
+  - **`JobDescription.tsx` & `JobSeekerDashboard.tsx`**:
+    - Replaced rigid desktop container widths and narrow padding (`px-4`) with robust responsive mobile-first padding classes (`px-4 sm:px-6 md:px-8 max-w-7xl mx-auto`).
+    - Ensured fluid spacing and clear touch target boundaries on mobile screens.
+  - **Automated Verification**:
+    - Ran full unit test suite (`npm test`), linter (`tsc --noEmit`), and build compilation (`compile_applet`) with 100% green status and zero errors.
+
+## [0.5.28-dev.14] - 2026-10-12
+### Fixed & Enhanced (DeepSeek Parser Audit Fixes & Test Fixture Suite)
+- **Problem Statement & Audit Findings**:
+  - Company name extraction occasionally captured stopword phrases like `will be used to fill` or `our Tukwila Branch` instead of the actual entity (`City of Tacoma` / `Salal Credit Union`).
+  - Location parsing captured standalone label artifacts like `Location`.
+  - Recruiter footer disclaimers and placeholder recipient emails (`<chris.barnes.2000@me.com>`) required robust scrubbing.
+- **Architectural Solution & Remediation**:
+  - **`src/utils/diceBoilerplateScrubber.ts`**:
+    - Added comprehensive stopword phrase filters (`COMPANY_STOPWORDS`) to reject invalid company extractions and fall back to footer `Employer:` blocks or official web domains.
+    - Added location artifact scrubbers to filter out standalone `Location`, `Remote`, `Address`, and `N/A` text lines.
+    - Added recipient email placeholder and confidentiality notice strippers.
+  - **`tests/unit/parserAuditFixtures.test.ts`**:
+    - Created a dedicated test fixture suite validating company resolution and location artifact cleanup across sample postings.
+    - Integrated into `tests/runAllTests.ts`. All test suites passed successfully with zero failures.
+
+## [0.5.28-dev.13] - 2026-10-12
+### Added & Documented (Parsing Engine Summary for DeepSeek Token Optimization)
+- **Problem Statement**: Needed a comprehensive architectural summary of all ingestion and parsing engines (Dice, CSV bulk exports, JSON resumes, PDF documents, Dice boilerplate scrubbers) to facilitate prompt engineering and dev token optimization with DeepSeek.
+- **Architectural Deliverable**:
+  - Created `/Docs/PARSING_ENGINE_SUMMARY.md` and artifact `.aistudio/artifacts/brain/6e60562a-a817-4e58-a637-e0a28adad44f/parsing_engine_summary.md` detailing regex patterns, normalizers, token efficiency targets, and deterministic pre-filtering strategies.
+  - Updated `/Docs/STRUCTURE.md`.
+
+## [0.5.28-dev.12] - 2026-10-12
+### Added & Enhanced (Dice Boilerplate Scrubber & Clean Employer Contact Card UI)
+- **Problem Statement**: Ingested job postings from job boards (such as Dice) frequently include email privacy disclaimers ("WHY DOES THE SENDER'S EMAIL ADDRESS LOOK SO STRANGE?", "To unsubscribe from future emails", "Dice will never share your email", "Get the Dice app"), footer footers, and unstructured address/phone strings that cluttered the job description view.
+- **Architectural Solution & Implementation**:
+  - **`src/utils/diceBoilerplateScrubber.ts`**: Created a comprehensive regex heuristic and blocklist parser that strips out Dice email disclaimers and footers while extracting clean entity names, department headers, physical address lines, official phone numbers, and website URLs.
+  - **`src/components/CleanEmployerContactCard.tsx`**: Created a production-grade, WCAG 2.1 AA compliant collapsible employer card rendering verified entity names, physical addresses, direct telephone links, and official portals.
+  - **Integration**: Integrated `CleanEmployerContactCard` into `JobDescription.tsx` (candidate view) and `AdminPostDetailsModal.tsx` (admin inspection view).
+  - **Automated Testing & Verification**: Created `tests/unit/diceBoilerplateScrubber.test.ts` and integrated it into `runAllTests.ts`. All test suites passed successfully with zero errors.
+
+## [0.5.28-dev.11] - 2026-10-12
+### Fixed & Remediated (Firestore Undefined Payload Suppression, Optional vs Required UI/UX, & Candidate Version Audit Trail)
+- **Problem Statement & RCA**:
+  - `updateDoc` crashed with `FirebaseError: Unsupported field value: undefined (found in field posterFirmName in document jobs/text-c6a98cb7d3ad812b)` when an admin validated a job where optional fields (e.g. `posterFirmName`, `salaryMin`, `salaryMax`) were empty strings or cleared, which evaluated to `undefined` in the update payload.
+  - The validation diff window lacked clear visual distinctions between required fields (legal company, job title, workplace mode) and optional fields (staffing agency, headquarters location, salary bounds).
+  - Admin validation corrections were not writing to `revisions` or triggering semantic version increments (`JobRevision`), leaving candidates unable to see verified company updates in their Version History & Audit Trail.
+- **Architectural Solution & Remediation**:
+  - **`AdminJobValidationModal.tsx`**:
+    - Integrated `sanitizeFirestorePayload` to strip all `undefined` values recursively before dispatching `updateDoc`.
+    - Applied `deleteField()` for empty `posterFirmName`, `salaryMin`, or `salaryMax` so invalid values (e.g. `"our Tukwila Branch"`) are cleanly pruned from Firestore rather than causing runtime crashes.
+    - Added `JobRevision` tracking in `handleSave` with `detectMaterialShifts`, semantic version bumping, and `revisions: arrayUnion(newRevision)`.
+    - Overhauled Right Column UI/UX:
+      - Displayed explicit **[Required]** badges on Validated Company Name, Job Title, and Workplace Mode.
+      - Displayed explicit **[Optional]** badges on Posted / Managed By Firm, Location, and Salary Bounds.
+      - Added field helper explanations and a **Clear Agency** action.
+      - Added Candidate Audit Version preview (`<History /> Next Candidate Audit Version: vX.Y.Z`) in the modal footer.
+  - **`src/pages/JobDescription.tsx`**:
+    - Updated Candidate Version History modal timeline to render hiring entity corrections (`previousValues.companyName ➔ newValues.companyName`) and recruiting agency updates with defensive timestamp formatting.
+  - **`src/utils/materialShiftEngine.ts`**:
+    - Added company and recruiter agency verification detection to `detectMaterialShifts` with 0 risk points and semantic patch bump.
+  - **Automated Testing & Verification**:
+    - Added Invariant 6 to `tests/unit/jobModerationAndNlpGuards.test.ts` asserting undefined field suppression and candidate `JobRevision` structure.
+
+## [0.5.28-dev.10] - 2026-10-12
+### Added & Enhanced (Post Details Action Bar & Uncut Context Expansion - Approach 1)
+- **Problem Statement**: In `AdminJobValidationModal.tsx`, the posting context window artificially sliced job descriptions at 450 characters (`job.description?.slice(0, 450)`), cutting off critical company names, recruiter signatures, and contract terms before admins could inspect them. Furthermore, there was no direct action bar option to inspect the complete post details.
+- **Architectural Solution (Approach 1 - Integrated Dual-Surface Post Details & Auto-Expandable Context)**:
+  - **`AdminPostDetailsModal.tsx`**: Created modular dedicated full requisition inspection modal featuring:
+    - Complete uncut job description viewer (no character cap).
+    - Requirements, qualifications, and skills catalog inspector.
+    - Status, requisition ID, workplace mode, report counts, and transparency badges.
+    - External tab launch link to live public job page (`#job/${job.id}`).
+    - Full WCAG 2.1/2.2 AA compliance: Escape key dismiss, accessible contrast, ARIA dialog attributes.
+  - **`AdminJobValidationModal.tsx`**:
+    - Removed `slice(0, 450)` artificial text truncation in the left column posting context snippet.
+    - Implemented interactive Expand/Compact toggle with dynamic max-height (`max-h-96` expanded / `max-h-44` compact) and character count indicator.
+    - Added **"View Post Details"** action button to the modal footer action bar and a quick "Full Requisition" launcher in the context header.
+  - **`AdminJobModerationTab.tsx`**:
+    - Added **"View Post"** action link directly within each queue card to allow admins to inspect public job postings in a new tab without opening diffs first.
+  - **Automated Test Expansion**:
+    - Added Invariant 5 to `tests/unit/jobModerationAndNlpGuards.test.ts` verifying description length preservation (>1500 chars), non-truncation past 450 chars, and deep link route integrity.
+  - **Documentation**:
+    - Updated `STRUCTURE.md` registering `AdminPostDetailsModal.tsx`.
+
+## [0.5.28-dev.09] - 2026-10-12
+### Fixed & Remediated (ITIL Incident Management & RCA - Job Reports Security Rule Provisioning)
+- **Incident Summary**: When candidates or recruiters attempted to submit a job report via `ReportJobModal.tsx`, Firestore threw `FirebaseError: Missing or insufficient permissions`.
+- **Root Cause Analysis (RCA)**:
+  - While the client-side reporting modal and Firestore write logic (`setDoc(doc(db, 'job_reports', reportId), cleanPayload)`) were implemented in `0.5.28-dev.08`, the Firestore security rules in `firestore.rules` and intermediate representation in `firebase-blueprint.json` lacked explicit rules for the newly introduced `/job_reports/{reportId}` collection path.
+  - Due to the global safety net (`match /{document=**} { allow read, write: if false; }`), writes to non-declared collections were rejected by Firestore as unpermitted operations.
+- **Remediation & Hardening**:
+  - **`firebase-blueprint.json`**: Added `JobReport` entity definition with validation schema and mapped `job_reports/{reportId}` to Firestore config.
+  - **`firestore.rules`**: Added rule block for `match /job_reports/{reportId}`:
+    - `allow create: if true;` (enabling candidate and recruiter reports across authenticated and guest sessions).
+    - `allow read: if isAdmin() || (isSignedIn() && resource.data.reporterUid == request.auth.uid);`.
+    - `allow update, delete: if isAdmin();` (allowing administrators to review, resolve, and dismiss reports).
+    - Updated `match /jobs/{jobId}` to allow public read and permit flagging updates (`flaggedForReview`, `reportCount`) from job report submissions.
+  - **Deployment**: Successfully deployed updated rules via `deploy_firebase` and `fax.DeployRules` RPC action.
+- **Verification Gate**:
+  - `lint_applet` (`tsc --noEmit`) passed with 0 errors.
+  - `npm test` passed 100% across all 13 suites.
+  - `compile_applet` production build succeeded.
+
+---
+
+## [0.5.28-dev.08] - 2026-10-12
+### Added & Hardened (ITIL Service Transition - Job Validation Diff Window, Multi-Role Reporting & NLP Guardrails)
+- **Candidate & Recruiter Reporting System (`src/components/ReportJobModal.tsx`)**:
+  - Implemented accessible reporting modal with WCAG 2.1/2.2 AA compliant focus trapping and escape dismissal.
+  - Multi-role support for candidates and recruiters to report incorrect company names, misparsed recruiter/managed-by entities, broken descriptions, and suspicious postings.
+  - Optional inputs for submitting proposed corrections (actual company name, actual staffing firm name, and explanatory notes).
+  - Persists structured reports to Firestore `job_reports` collection and atomically flags the corresponding job document (`flaggedForReview: true`, `reportCount: increment(1)`).
+- **Subtle Report Actions in UI Surfaces (`src/pages/JobSeekerDashboard.tsx` & `src/pages/JobDescription.tsx`)**:
+  - Added subtle `<Flag className="w-3 h-3" />` Report button on every job card in `JobSeekerDashboard.tsx` alongside company and managed-by tags.
+  - Added prominent "Report Posting" button in the action header bar of `JobDescription.tsx` next to role clarification request.
+- **Admin Side-by-Side Validation Diff Window (`src/components/admin/AdminJobValidationModal.tsx`)**:
+  - Left Column (Ingested Snapshot): Read-only view of original ingested company name, poster firm, job title, workplace, salary, raw posting snippet, and reporter's submitted notes and suggestions.
+  - Right Column (Live Editable Corrections): Form inputs for company name, poster firm name, title, workplace, location, and salary with instant color-coded visual diff badges.
+  - One-click "Apply Reporter Suggestion" button pre-populating suggested corrections into the editable fields.
+  - Actions: "Save & Approve Updates" (commits to Firestore `jobs/{id}`, resolves report), "Remove Bad Posting" (atomic deletion from `jobs`), and "Dismiss Report".
+- **Admin Moderation Queue Tab (`src/components/admin/AdminJobModerationTab.tsx` & `src/pages/AdminPanel.tsx`)**:
+  - Added dedicated "Job Moderation" tab with active report counter badge in the admin navigation bar.
+  - Filterable moderation list by issue category with direct launch of the validation diff modal.
+- **NLP Ingestion Guardrails (`server.ts`)**:
+  - Added deterministic negative regex blocklists (`INVALID_ENTITY_PATTERNS`) and `isValidEntityName` validator in `localNlpParse` and `indeedNlpParse`.
+  - Prevents erroneous extraction of phrases like "our Tukwila Branch", "our Seattle branch", "our office", "will have a positive", "Equal Opportunity Employer", and "Apply Now" from ever entering the database.
+- **Automated Unit Testing (`tests/unit/jobModerationAndNlpGuards.test.ts`)**:
+  - Verified NLP false-positive blocklists, legitimate entity acceptance, report schema validation, diff calculation, and resolution state transitions.
+- **Verification Gate**:
+  - `lint_applet` (`tsc --noEmit`) passed with 0 errors.
+  - `npm test` executed with 100% assertions satisfied across all 13 suites.
+  - `compile_applet` production build succeeded.
+
+---
+
+## [0.5.28-dev.07] - 2026-10-12
+### Added & Modularized (ITIL Service Transition - Target Indicators Sub-Section Architecture)
+- **Target Indicators Sub-Section Component (`src/components/profile/TargetIndicatorsEditor.tsx`)**:
+  - Encapsulated all 5 matching target indicators into a dedicated, reusable, accessible sub-section component:
+    1. **Target Role**: Text input with focus indicators, semantic labels, and quick-pick chips (Senior Full Stack Engineer, Staff Software Architect, Senior Product Manager, etc.).
+    2. **Target Industries**: Multi-industry tag management (`IndustryEditor`) with tag search, badge counters, and popular industry suggestion chips.
+    3. **Target In-Person & Hybrid Locations**: 5-location tag manager (`LocationEditor`) powered by Google Places API (New) with commute minutes (10–120m) and distance radius (1–50mi) constraint controls per tag.
+    4. **Target Salary**: Formatted currency display, input with numeric validation, and rapid salary tier buttons ($120k, $150k, $180k, $220k).
+    5. **Target Benefit Requests**: Standard benefit chips with active visual toggles, custom benefit entry form with accessible tag removal.
+  - Added KPI status badge and real-time progress indicator ("X of 5 Configured") providing clear visual feedback on matching completeness.
+- **Sidebar Navigation & Multi-View Integration (`src/pages/ProfileEditor.tsx`)**:
+  - Added dedicated `Target Indicators` item to the sidebar navigation menu with `<Target className="w-4 h-4" />` icon, granting direct 1-click access to the target indicators editor.
+  - Retained embedded sub-section view directly inside `Basic Info` below personal info for inline discovery and editing.
+  - Decomposed over 110 lines of inline target code out of `ProfileEditor.tsx`, complying with NASA JPL Rule 4 and modularity guidelines.
+- **Automated Tests Expansion (`tests/unit/locationAndIndustryPreferences.test.ts`)**:
+  - Added Invariant 6 validating the 5-pillar completeness calculation and state evaluation.
+- **Verification Gate**:
+  - `lint_applet` (`tsc --noEmit`) passed with 0 errors.
+  - `npm test` executed with 100% assertions satisfied across all test suites.
+  - `compile_applet` production build succeeded.
+
+---
+
+## [0.5.28-dev.06] - 2026-10-12
+### Added & Fixed (ITIL Service Transition - Multi-Industry & 5-Location Tag Management)
+- **Google Maps Places API (New) Migration (`server.ts`)**:
+  - Diagnosed root cause of autocomplete returning empty arrays: Google Maps rejected calls to the legacy endpoint (`LegacyApiNotActivatedMapError`).
+  - Migrated `/api/autocomplete` from legacy Place Autocomplete to modern Google Places API (New) (`https://places.googleapis.com/v1/places:autocomplete`) with `X-Goog-Api-Key` authorization.
+  - Deployed updated Firestore security rules via `deploy_firebase` for the `autocomplete_cache` collection.
+  - Implemented non-empty caching constraint to prevent transient/empty responses from poisoning the Firestore cache.
+  - Added deterministic fallback for US zip codes and city names to guarantee zero-latency offline resilience.
+- **5-Location Selector & Tag Management (`src/components/profile/LocationEditor.tsx`)**:
+  - Re-architected `LocationEditor` with real-time suggestion dropdown, keyboard navigation (Arrow Up/Down, Enter, Escape), loading spinners, and an explicit accessible `+ Add` button.
+  - Added deterministic tag creation on Enter or click even if autocomplete is in-flight or offline.
+  - Added in-person/hybrid commute constraint controls on every location tag: distance radius (5, 10, 15, 25, 50 miles) and commute duration (15m, 30m, 45m, 60m, 90m, 120m).
+  - Enforced a hard limit of 5 target locations with accessible counter and duplicate prevention.
+  - Added quick 1-click sample location chips (Seattle, WA; Bonney Lake, WA 98391; San Francisco, CA; Washington, DC).
+- **Multi-Industry Selection Component (`src/components/profile/IndustryEditor.tsx`)**:
+  - Replaced the single-string target industry text field in `ProfileEditor.tsx` with a multi-industry tag selector.
+  - Added popular industry quick-chips (GovTech, Defense & Aerospace, HealthTech, FinTech, Cybersecurity, Enterprise SaaS, AI & Machine Learning, CleanTech, BioTech, EdTech).
+  - Maintained backward compatibility by updating both `targetIndustries: string[]` and comma-separated `targetIndustry: string`.
+- **Profile Editor UX & In-Page Toast (`src/pages/ProfileEditor.tsx`)**:
+  - Replaced native `alert()` calls with an accessible, auto-dismissing notification banner.
+- **Automated Safety-Critical Unit Tests (`tests/unit/locationAndIndustryPreferences.test.ts`)**:
+  - Added 5 invariant tests covering the 5-location ceiling, deduplication, commute/distance boundary rules (1–50 mi, 10–120 mins), fallback place ID generation, and multi-industry backward-compatible serialization.
+- **Verification Gate**:
+  - `lint_applet` (`tsc --noEmit`) completed with 0 errors.
+  - `npm test` executed with 100% assertions satisfied across all suites.
+  - `compile_applet` build succeeded.
+
+---
+
+## [0.5.28-dev.05] - 2026-10-11
+### Refactored & Hardened (ITIL Service Transition - Removing Hard Splitting Boundaries)
+- **Unified Description & Requirements Flow (`server.ts`)**:
+  - Removed hard mechanical splitting boundaries between description and requirements in `localNlpParse`, ensuring the full posting text is preserved in both fields while maintaining rich extracted metadata (minimum vs preferred qualifications, company overview, EEO statement, and export control/clearance).
+- **Verification Gate**:
+  - Compiled successfully (`compile_applet`).
+  - Executed 100% green unit test suite with zero failures (`npx tsx tests/runAllTests.ts`).
+
+---
+
+## [0.5.28-dev.04] - 2026-10-11
+### Added & Hardened (ITIL Service Transition - Enhanced Job Parsing & Elaborate Views)
+- **Advanced Job Description & Qualification Parsing (`server.ts`)**:
+  - Upgraded `localNlpParse` and AI prompt schemas (`v2`, `v3`, `pdf_gemini`) to parse and segment job postings into granular structured categories:
+    - **Role Description & Responsibilities**
+    - **Minimum vs. Preferred Qualifications** (separate extraction for Must-Haves vs. Nice-to-Haves)
+    - **Company Overview & Background** (identifying mission and "About Us" sections)
+    - **EEO & Affirmative Action Statements**
+    - **Security Clearance, Export Control & U.S. Person Compliance**
+- **Elaborate & Enhanced Job Detail Views (`src/components/tracker/JobTracker.tsx`)**:
+  - Re-architected the job detail view drawer with dedicated, beautifully styled cards and panels for Minimum vs. Preferred Qualifications, Company Overview, EEO Statement, Export Control / Clearance, and Full Description.
+- **Verification Gate**:
+  - Compiled successfully with zero errors (`compile_applet`).
+  - Executed 100% green unit test suite with zero failures (`npx tsx tests/runAllTests.ts`).
+
+---
+
+## [0.5.28-dev.03] - 2026-10-11
+### Added & Hardened (ITIL Service Transition - Indeed Parser, Auto-Detection & Revision Modal)
+- **Indeed Job Board Parser & Auto-Detection Engine (`server.ts`)**:
+  - Implemented specialized `indeedNlpParse` supporting Indeed layout formats (such as Impinj and Attain Finance postings), extracting company names with rating dots (`· 3.3`, `· 3.6`), annual/hourly salary ranges (`$131,200 - $196,800 a year`), location, workplace type, and structured requirements.
+  - Implemented automatic board/format detection (`autoDetectedFormat`) distinguishing Indeed postings, GovernmentJobs / NEOGOV, Dice emails, LinkedIn, and Generic descriptions.
+- **Auto-Detection & Revision / Specific Import Modal (`src/components/tracker/JobTracker.tsx`)**:
+  - Added an interactive review and revision modal upon job ingestion displaying the auto-detected format badge.
+  - Allows candidates to inspect and edit extracted job title, company name, location, workplace type, salary min/max, and source board before confirming and saving to their active application tracker.
+- **Interactive Admin Executive Telemetry Cards (`src/components/admin/AdminHeaderStats.tsx` & `src/pages/AdminPanel.tsx`)**:
+  - Made all 4 executive metric cards on the Admin Dashboard clickable and interactive with visual hover states and external link indicators:
+    - *Active Jobs* -> switches admin view to Data Seeding Engine / Requisitions (`simulation`).
+    - *Applications* -> switches admin view to Access Requests (`requests`).
+    - *Total Users* -> navigates directly to Talent Pool / Employer Sourcing (`#sourcing`).
+    - *Companies* -> navigates directly to the Company Directory page (`#companies`).
+- **Mass Ingestion & Outreach Parser Engine (`src/utils/massOutreachParser.ts`)**:
+  - Implemented RFC 4180-compliant CSV parser (`parseCsvLine`, `parseCsvRows`) supporting multiline quoted strings and escaped quotes.
+  - Implemented multi-format schema normalizer supporting LinkedIn Connections exports, Google/Apple Contacts exports, and Categorized Relationship exports.
+  - Built intelligent classification rules (`classifyContact`) partitioning contacts into `staffing_partner`, `recruiter_lead`, `employer_lead`, and `general_contact` based on keywords and agency signatures.
+  - Enforced NASA JPL Rule 2 static iteration ceiling (`MAX_IMPORT_ROWS = 2500`).
+  - Implemented multi-channel outreach generator (`generateOutreachTemplates`) creating personalized message bodies, Gmail deep-links, Outlook deep-links, and native mailto URLs.
+  - Built campaign exporter (`exportContactsToCsv`) generating RFC CSV downloads.
+- **Pre-Compiled Master Professional & Recruiter Roster (`src/data/masterContactRoster.ts`)**:
+  - Ingested and deduplicated 60+ verified staffing agency recruiters, executive talent leads, and direct technical recruiters (Revature, Robert Half, Intelliswift, Diversant, Citi, Google, Boeing, BECU, Hunter Bond, Talan, Spencer & James).
+- **Admin Mass Import Workspace (`src/components/admin/AdminMassImportTab.tsx`)**:
+  - Engineered high-density, accessible subcomponent (<450 lines) with drag-and-drop CSV upload, raw paste zone, live classification filtering, full-text search, and batch selection.
+  - Features 1-Click "Load Chris's Master Roster" pre-populating verified agency recruiters without friction.
+  - Integrated batch execution buttons:
+    - *Batch Issue Partner Tokens* -> writes active tokens to `staffing_invitations`.
+    - *Batch Sync to Recruiter Leads* -> ingests to `recruiter_leads`.
+    - *Batch Queue Access Requests* -> ingests to `partner_requests`.
+    - *Export Campaign CSV* -> instant download.
+  - Integrated single-contact outreach modal with direct Gmail, Outlook, and Mail client triggers.
+- **Admin Panel Terminal Orchestration (`src/pages/AdminPanel.tsx`)**:
+  - Registered `mass-import` tab mode in navigation bar with `<Sparkles className="w-4 h-4 text-amber-400" />`.
+  - Added batch writing handlers `handleBatchIssueInvitations`, `handleBatchSyncRecruiterLeads`, and `handleBatchConvertRequests` with telemetry refresh.
+- **Security Rules & Schema Hardening (`firestore.rules` & `firebase-blueprint.json`)**:
+  - Added explicit hardened rule block for `/recruiter_leads/{leadId}` with admin read/write and authenticated create.
+  - Registered `RecruiterLead` entity and collection path in `firebase-blueprint.json`.
+  - Added `RecruiterLead` interface to `src/types/index.ts`.
+- **Automated Test Suite Expansion (`tests/unit/massOutreachParser.test.ts`)**:
+  - Created 9 comprehensive unit tests covering CSV line tokenization, classification partitioning, LinkedIn export ingestion, contact card phone/email sanitization, categorized relationships, deduplication, outreach templates, CSV exports, and NASA JPL iteration ceiling.
+  - Registered in `tests/runAllTests.ts`.
+- **Security Rules Deployment & Collection Group Gate (`firestore.rules` & `deploy_firebase`)**:
+  - Deployed `firestore.rules` via `deploy_firebase` to activate live cloud authorization for `/recruiter_leads/{leadId}`.
+  - Added collectionGroup rule `match /{path=**}/ingestedJobs/{jobId} { allow read: if isAdmin(); }`, enabling `fetchLeads()` to query all candidate-ingested job subcollections across all users without `PERMISSION_DENIED` halts.
+- **Universal Recruiter Ingestion & Relaxed Invariants (`server.ts` & `src/components/tracker/JobTracker.tsx`)**:
+  - Upgraded `localNlpParse` in `server.ts` to search for recruiter signatures, emails, phones, and staffing firm names across general pasted text and job uploads (previously only Dice and GovJobs tabs ran recruiter extraction).
+  - Relaxed recruiter lead generation in `JobTracker.tsx`: now creates `recruiter_leads` documents whenever a recruiter name or staffing firm is detected, removing the hard requirement for an email address and falling back to deterministic name/firm IDs.
+- **1-Click Sync Accessibility & Workflow Polish (`AdminMassImportTab.tsx` & `AdminRecruiterLeadsTab.tsx`)**:
+  - Added 1-Click **"⚡ Sync All Leads"** and **"⚡ Issue All Tokens"** buttons in `AdminMassImportTab.tsx`, eliminating the need to manually click checkboxes.
+  - Added row-level **"Sync Lead"** actions for instant single-contact sync.
+  - Added **"Import from Network Roster"** directly in `AdminRecruiterLeadsTab.tsx` header for instant lead backfill.
+  - Wrapped `handleBatchSyncRecruiterLeads` with `sanitizeFirestorePayload` to prevent undefined field Firestore write errors.
+- **Verification Gate**:
+  - `npx tsx tests/runAllTests.ts`: 11 test suites / 70+ assertions passing with 100% green status.
+  - `lint_applet` (`tsc --noEmit`): Zero errors and zero warnings.
+  - `compile_applet`: Clean production build.
+
+---
+
+## [0.5.28-dev.02] - 2026-10-10
+### Fixed & Updated (Incident Management - AI Model Migration & Deprecation Fix)
+- **Model Deprecation Remediation (`server.ts`)**:
+  - Replaced retired models (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-3.6-flash`) across all server endpoints (`/api/enhance-job`, `/api/ingest-job/chat`, `/api/tailor-resume`, `/api/parse-resume`, `/api/enhance-skills`, `/api/transition-advisory`, and PDF ingestion) with the official, supported **`gemini-3.8-flash`**.
+  - Resolved `HTTP 404 NOT_FOUND ("models/gemini-2.5-flash is no longer available to new users")` preventing job enhancements and tailored resume generation.
+- **Verification Gate**:
+  - `npx tsx tests/runAllTests.ts`: 100% test assertions satisfied.
+  - `compile_applet` & `lint_applet`: Zero warnings and zero errors.
+
+---
+
+## [0.5.28-dev.01] - 2026-10-04
+### Enhanced & Fixed (ITIL Service Transition - GovJobs Outreach & Process Flow Manager Parsing)
+- **Outreach & Process Flow Ingestion (`server.ts`)**:
+  - Upgraded the specialized `govJobsNlpParse` government requisition scraper to search for contact managers and recruitment administrators actively routing the application lifecycle (e.g. *"This recruitment is being managed by [Name]"*).
+  - Automatically extracts identified contact names into `recruiterInfo.name` and gathers associated LinkedIn profile URLs into `recruiterInfo.linkedInUrl` directly from the raw posting text.
+- **Bridge UI Preview Expansion (`src/components/GovJobsBridge.tsx`)**:
+  - Added `linkedInUrl` support to `GovJobData` interface and updated the preview card to display the Outreach & Process Flow Manager along with a direct `"Connect on LinkedIn"` action link.
+- **Verification Gate**:
+  - `tests/unit/culturalValuesAndRecruiter.test.ts`: Added Test 6 verifying GovJobs outreach contact and LinkedIn URL parsing regex capabilities.
+  - `npx tsx tests/runAllTests.ts`: All suites passing with 100% green compliance.
+  - Compiled applet successfully.
+
+---
+
+## [0.5.28] - 2026-10-04
+### Promoted & Released (ITIL Release & Deployment Management - Culture-Add Matching & Recruiter Partnership)
+- **Public Milestone Cut**: Successfully promoted iterations `0.5.27-dev.17` and `0.5.27-dev.18` into public milestone release **v0.5.28**.
+- **Configuration Item (CI) Synchronizations**:
+  - `package.json` & `src/config.ts`: Version bumped to `0.5.28`.
+- **Integrated Cultural Values & Recruiter Partnership Hub**:
+  - Integrated Fast Company 26 Cultural Values and Manpower 5 Keys into a unified, interactive `RecruiterCultureMatrix.tsx` component.
+  - Formulated comprehensive `/src/data/culturalValuesCatalog.ts` covering reverse-interview probes, candidate-recruiter actionable checklists, and cultural red-flags.
+  - Implemented cultural matching bonus scoring (+5%) in `useJobMatching.ts` and linter warnings in `materialShiftEngine.ts`.
+- **Validation Gate Sign-Off**:
+  - 10 test suites / 60+ assertions fully satisfied with zero failures.
+  - Compiled applet with zero errors and warnings.
+
+---
+
+## [0.5.27-dev.18] - 2026-10-04
+### Added & Documented (ITIL Service Transition - Manpower 5 Keys Working with a Recruiter Tracking & Architecture Strategy)
+- **Manpower Insights Reference Tracking (`/Docs/Manpower_5_Keys_Working_With_Recruiter.md`)**:
+  - Ingested full Manpower Insights guide (*What Are the 5 Keys to Working with a Recruiter?*) covering Recruiter Value Proposition, First Impressions, Trust & Clear Communication, Proactive Follow-Up (Debriefs & Competing Offers), Team Cooperation, and Post-Placement Career Continuity.
+  - Linked reference document to Ascend ATS recruiter relationship health tracker, post-interview feedback portal, and candidate recruiter-readiness card strategy.
+- **Documentation & Structure Sync**:
+  - Updated `Docs/STRUCTURE.md` registering `Manpower_5_Keys_Working_With_Recruiter.md`.
+
+---
+
+## [0.5.27-dev.17] - 2026-10-04
+### Added & Documented (ITIL Service Transition - Fast Company 26 Cultural Values Reference & Architectural Strategy)
+- **Fast Company Impact Council Reference Tracking (`/Docs/FastCompany_26_Cultural_Values.md`)**:
+  - Ingested full Fast Company article (*26 Cultural Values Companies Get Wrong*) covering Originality, Gracious Professionalism, Reciprocity, Innovation as Behavior, Uncomfortable Transparency, Culture-Add Hiring, Accountability without Fault, Pacing vs Hustle, Ecosystem vs Family, and Kindness vs Niceness.
+  - Linked reference document to Ascend ATS & RapportVerse dual-sided interview copilot, values alignment matching, and requisition auditing strategy.
+- **Documentation & Structure Sync**:
+  - Updated `Docs/STRUCTURE.md` registering `FastCompany_26_Cultural_Values.md`.
+
+---
+
 ## [0.5.27-dev.16] - 2026-10-04
 ### Refactored & Hardened (ITIL Service Transition - AdminPanel Modular Subcomponent Decomposition)
 - **Monolithic Admin Panel Refactoring (`src/pages/AdminPanel.tsx` -> `src/components/admin/`)**:
@@ -670,3 +1146,23 @@ This internal engineering log records granular development actions, architecture
 - **Trust Equation Simulator**: Real-time slider engine evaluating David Maister's $(C+R+I)/S$ quotient.
 - **Ecosystem Exporter**: JSON schema exporter (`rapportverse-trust-topology.json`) and webhook sync validator.
 - **Integration Guide**: Published `/Docs/RapportVerse_Bridge_Integration_Guide.md` for external partner integration.
+
+### 2026-10-12
+- Fixed syntax error in `server.ts` caused by orphaned code and brace imbalance.
+- Removed redundant code from refactored `localNlpParse` function and fixed `}` brace imbalance in `enhancePastedTextMarkdown` function to allow dev server startup.
+
+### 2026-10-12
+- Implemented `/api/autocomplete` server-side proxy in `server.ts` with Firestore-based caching (24h TTL) for Google Places Autocomplete to optimize API costs.
+- Replaced client-side `PlaceAutocompleteElement` in `LocationEditor.tsx` with a custom, proxy-fetching autocomplete component to support server-side caching and improve compliance.
+
+### 2026-10-12 (Fix)
+- Resolved permission error in `/api/autocomplete` by updating `firestore.rules` to allow public read/write access to `autocomplete_cache` collection for server-side proxy operations.
+
+### 2026-10-12 (Bug Fix)
+- Fixed issue where Enter key did not select location in `LocationEditor.tsx`.
+- Improved focus visibility for `LocationEditor` input.
+
+### 2026-10-12 (Feature)
+- Implemented 5-location selector for candidates with tag-based input and Google Maps integration in `src/components/profile/LocationEditor.tsx`.
+- Updated `JobSeekerProfile` type to support `TargetLocation` structure.
+- Enforced 5-location limit in `LocationEditor`.

@@ -7,6 +7,7 @@ import { ResumeUpload } from '../components/ResumeUpload';
 import { JsonProfileUpload } from '../components/JsonProfileUpload';
 import { JobSeekerProfile, WorkExperience, Education } from '../types';
 import { mergeProfileData } from '../utils/profileMerge';
+import { sanitizeFirestorePayload } from '../utils/firestoreSanitizer';
 import { ChevronRight, ChevronLeft, Check, Sparkles, Building, GraduationCap, Target, Loader2, FileText, X } from 'lucide-react';
 
 export const ProfileWizard = ({ onComplete }: { onComplete: () => void }) => {
@@ -46,10 +47,12 @@ export const ProfileWizard = ({ onComplete }: { onComplete: () => void }) => {
         const userRef = doc(db, 'users', user.uid);
         const profileRef = doc(db, `users/${user.uid}/profiles/main`);
 
-        await setDoc(profileRef, {
+        const payload = sanitizeFirestorePayload({
           ...profile,
           updatedAt: serverTimestamp()
-        }, { merge: true });
+        });
+
+        await setDoc(profileRef, payload, { merge: true });
 
         await setDoc(userRef, { 
           profileCompleted: true,

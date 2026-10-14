@@ -4,6 +4,10 @@ import {
   Briefcase, CheckCircle2, DollarSign, Target, List, Info, Quote
 } from 'lucide-react';
 import { STATIC_CONFIG } from '../config';
+import { 
+  normalizeJobContentWhitespace, 
+  parseCohesiveBlocks 
+} from '../utils/textWhitespaceNormalizer';
 
 export type JobPreviewMode = 'rich' | 'markdown' | 'raw';
 
@@ -25,7 +29,7 @@ interface JobContentPreviewProps {
 export function stripMarkdownFormatting(rawText: string): string {
   if (!rawText || typeof rawText !== 'string') return '';
 
-  let text = rawText;
+  let text = normalizeJobContentWhitespace(rawText);
 
   // 1. Remove markdown headers (#, ##, ###, ####)
   text = text.replace(/^#{1,6}\s+/gm, '');
@@ -152,186 +156,141 @@ export const JobContentPreview: React.FC<JobContentPreviewProps> = ({
 
   // Safe line-by-line parsing bounded to STATIC_CONFIG.SAFETY_LIMITS.MAX_ITERATION_CEILING
   const maxLines = STATIC_CONFIG?.SAFETY_LIMITS?.MAX_ITERATION_CEILING || 1000;
-  const rawLines = (content || '').split('\n').slice(0, maxLines);
 
-  // Group lines into structured sections for Rich Text mode
+  // Group lines into structured cohesive sections for Rich Text mode (Approach A)
   const renderRichSections = () => {
     if (!content || !content.trim()) {
       return (
-        <span className="block py-16 text-center text-slate-400 italic text-sm bg-slate-50/30 dark:bg-slate-900/10 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+        <span className="block py-12 sm:py-16 text-center text-slate-400 italic text-xs sm:text-sm bg-slate-50/30 dark:bg-slate-900/10 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
           No description content provided.
         </span>
       );
     }
 
-    const elements: React.ReactNode[] = [];
-    let currentBulletList: string[] = [];
-    let inCodeBlock = false;
-    let codeBlockContent: string[] = [];
+    const blocks = parseCohesiveBlocks(content, maxLines);
+    if (blocks.length === 0) {
+      return (
+        <span className="block py-12 sm:py-16 text-center text-slate-400 italic text-xs sm:text-sm bg-slate-50/30 dark:bg-slate-900/10 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+          No description content provided.
+        </span>
+      );
+    }
 
-    const flushCodeBlock = (keyPrefix: string) => {
-      if (codeBlockContent.length > 0) {
-        elements.push(
-          <span key={`${keyPrefix}-code`} className="block my-6 rounded-2xl bg-slate-950 p-6 border border-slate-800 font-mono text-[13px] text-indigo-200/90 overflow-x-auto shadow-xl relative group/code">
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-800/50">
-              <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                <Code className="w-3.5 h-3.5" /> Syntax Preview
+    return blocks.map((block, idx) => {
+      // 1. Heading block
+      if (block.type === 'heading') {
+        if (block.level === 1 || block.level === 2) {
+          return (
+            <span key={`h-${idx}`} className="block mt-8 mb-4 pb-2.5 border-b border-slate-100 dark:border-slate-800/60 first:mt-0">
+              <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2.5 tracking-tight">
+                <span className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+                  {getSectionIcon(block.content)}
+                </span>
+                <span>{block.content}</span>
               </span>
-              <button 
-                onClick={() => navigator.clipboard.writeText(codeBlockContent.join('\n'))}
-                className="opacity-0 group-hover/code:opacity-100 p-1.5 hover:bg-slate-800 rounded-md transition-all text-slate-500 hover:text-white"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            {codeBlockContent.join('\n')}
+            </span>
+          );
+        }
+        return (
+          <span key={`h-${idx}`} className="block mt-6 mb-3 text-[11px] font-black uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400 flex items-center gap-2.5 first:mt-0">
+            <span className="w-6 h-px bg-indigo-100 dark:bg-indigo-900/50" />
+            <span>{block.content}</span>
           </span>
         );
-        codeBlockContent = [];
       }
-    };
 
-    const flushBulletList = (keyPrefix: string) => {
-      if (currentBulletList.length > 0) {
-        elements.push(
-          <span key={`${keyPrefix}-list`} className="block my-5 space-y-3.5 pl-1">
-            {currentBulletList.map((item, idx) => (
-              <span key={`${keyPrefix}-item-${idx}`} className="flex items-start gap-3.5 text-slate-700 dark:text-slate-300 text-[14px] leading-relaxed group">
+      // 2. Bullet list block
+      if (block.type === 'bullet_list' && block.items && block.items.length > 0) {
+        return (
+          <span key={`list-${idx}`} className="block my-4 space-y-2.5 sm:space-y-3 pl-1">
+            {block.items.map((item, itemIdx) => (
+              <span key={`item-${idx}-${itemIdx}`} className="flex items-start gap-3 text-slate-700 dark:text-slate-300 text-xs sm:text-sm leading-relaxed group">
                 <span className="mt-2 h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 shrink-0 group-hover:scale-125 transition-transform shadow-[0_0_8px_rgba(99,102,241,0.4)]" aria-hidden="true" />
                 <span className="flex-1">{renderInlinePhrasing(item)}</span>
               </span>
             ))}
           </span>
         );
-        currentBulletList = [];
-      }
-    };
-
-    for (let i = 0; i < rawLines.length && i < maxLines; i++) {
-      const line = rawLines[i].trim();
-
-      // Handle Code Blocks
-      if (line.startsWith('```')) {
-        if (inCodeBlock) {
-          flushCodeBlock(`cb-${i}`);
-          inCodeBlock = false;
-        } else {
-          flushBulletList(`pre-cb-${i}`);
-          inCodeBlock = true;
-        }
-        continue;
       }
 
-      if (inCodeBlock) {
-        codeBlockContent.push(rawLines[i]);
-        continue;
+      // 3. Numbered list block
+      if (block.type === 'numbered_list' && block.items && block.items.length > 0) {
+        return (
+          <span key={`num-list-${idx}`} className="block my-4 space-y-2.5 sm:space-y-3">
+            {block.items.map((item, itemIdx) => {
+              const numMatch = item.match(/^(\d+)[\.\)]\s+(.*)$/);
+              const num = numMatch ? numMatch[1] : `${itemIdx + 1}`;
+              const text = numMatch ? numMatch[2] : item;
+              return (
+                <span key={`num-item-${idx}-${itemIdx}`} className="flex items-start gap-3 text-slate-700 dark:text-slate-300 text-xs sm:text-sm leading-relaxed group">
+                  <span className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-black text-[10px] shrink-0 mt-0.5 border border-indigo-200/50 dark:border-indigo-900/50 shadow-xs group-hover:scale-110 transition-transform">
+                    {num}
+                  </span>
+                  <span className="flex-1">{renderInlinePhrasing(text)}</span>
+                </span>
+              );
+            })}
+          </span>
+        );
       }
 
-      // Handle Horizontal Rules
-      if (line === '---' || line === '***' || line === '___') {
-        flushBulletList(`hr-${i}`);
-        elements.push(
-          <div key={`hr-${i}`} className="flex items-center gap-4 my-8">
+      // 4. Code fence block
+      if (block.type === 'code') {
+        return (
+          <span key={`code-${idx}`} className="block my-5 rounded-2xl bg-slate-950 p-5 sm:p-6 border border-slate-800 font-mono text-xs sm:text-[13px] text-indigo-200/90 overflow-x-auto shadow-xl relative group/code">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/50">
+              <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <Code className="w-3.5 h-3.5" /> Syntax Preview
+              </span>
+              <button 
+                onClick={() => navigator.clipboard.writeText(block.content)}
+                className="opacity-0 group-hover/code:opacity-100 p-1.5 hover:bg-slate-800 rounded-md transition-all text-slate-500 hover:text-white cursor-pointer"
+                title="Copy code"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {block.content}
+          </span>
+        );
+      }
+
+      // 5. Blockquote block
+      if (block.type === 'quote') {
+        return (
+          <span 
+            key={`quote-${idx}`} 
+            className="block my-3.5 pl-4 py-2.5 sm:py-3 border-l-4 border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20 text-slate-600 dark:text-slate-300 text-xs sm:text-sm italic rounded-r-2xl shadow-xs"
+          >
+            <Quote className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400 mb-1 opacity-50" />
+            {renderInlinePhrasing(block.content)}
+          </span>
+        );
+      }
+
+      // 6. Horizontal rule block
+      if (block.type === 'hr') {
+        return (
+          <div key={`hr-${idx}`} className="flex items-center gap-4 my-6 sm:my-8">
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent" />
             <div className="w-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800" />
             <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent" />
           </div>
         );
-        continue;
       }
 
-      // Check for markdown headings (#, ##, ###, ####)
-      const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
-      if (headingMatch) {
-        flushBulletList(`heading-${i}`);
-        const level = headingMatch[1].length;
-        const headingText = headingMatch[2].trim();
-
-        if (level === 1 || level === 2) {
-          elements.push(
-            <span key={`h-${i}`} className="block mt-10 mb-5 pb-3 border-b border-slate-100 dark:border-slate-800/60">
-              <span className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-3 tracking-tight">
-                <span className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
-                  {getSectionIcon(headingText)}
-                </span>
-                <span>{headingText}</span>
-              </span>
-            </span>
-          );
-        } else {
-          elements.push(
-            <span key={`h-${i}`} className="block mt-8 mb-3.5 text-[11px] font-black uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400 flex items-center gap-3">
-              <span className="w-8 h-px bg-indigo-100 dark:bg-indigo-900/50" />
-              <span>{headingText}</span>
-            </span>
-          );
-        }
-        continue;
-      }
-
-      // Check for bullet items (*, -, •, +)
-      const bulletMatch = line.match(/^[\*\-\•\+]\s+(.+)$/);
-      if (bulletMatch) {
-        currentBulletList.push(bulletMatch[1]);
-        continue;
-      }
-
-      // Check for numbered items (1. , 2. )
-      const numberMatch = line.match(/^(\d+)\.\s+(.+)$/);
-      if (numberMatch) {
-        flushBulletList(`num-${i}`);
-        const num = numberMatch[1];
-        const numText = numberMatch[2];
-        elements.push(
-          <span key={`num-${i}`} className="flex items-start gap-4 my-3 text-slate-700 dark:text-slate-300 text-sm leading-relaxed group">
-            <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-black text-[10px] shrink-0 mt-0.5 border border-indigo-200/50 dark:border-indigo-900/50 shadow-sm group-hover:scale-110 transition-transform">
-              {num}
-            </span>
-            <span className="flex-1">{renderInlinePhrasing(numText)}</span>
-          </span>
-        );
-        continue;
-      }
-
-      // Check for blockquotes (> text)
-      if (line.startsWith('>')) {
-        flushBulletList(`quote-${i}`);
-        const quoteText = line.replace(/^>\s*/, '');
-        elements.push(
-          <span 
-            key={`quote-${i}`} 
-            className="block my-4 pl-4 py-3 border-l-4 border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/20 text-slate-600 dark:text-slate-300 text-sm italic rounded-r-2xl shadow-sm"
-          >
-            <Quote className="w-4 h-4 text-indigo-400 mb-1 opacity-50" />
-            {renderInlinePhrasing(quoteText)}
-          </span>
-        );
-        continue;
-      }
-
-      // Blank line flush
-      if (!line) {
-        flushBulletList(`blank-${i}`);
-        continue;
-      }
-
-      // Standard paragraph line
-      flushBulletList(`p-${i}`);
-      elements.push(
-        <span key={`p-${i}`} className="block my-3 text-slate-700 dark:text-slate-300 text-sm leading-relaxed first:mt-0">
-          {renderInlinePhrasing(line)}
+      // 7. Cohesive Paragraph block (Approach A)
+      return (
+        <span key={`p-${idx}`} className="block my-2.5 sm:my-3 text-slate-700 dark:text-slate-300 text-xs sm:text-sm leading-relaxed first:mt-0">
+          {renderInlinePhrasing(block.content)}
         </span>
       );
-    }
-
-    // Final flush
-    flushBulletList('end');
-    flushCodeBlock('end');
-    return elements;
+    });
   };
 
   // Enhanced Markdown mode: Document-like feel with code editor styling
   const renderMarkdownMode = () => {
+    const normalizedMarkdown = normalizeJobContentWhitespace(content);
     return (
       <span className="block relative group">
         <div className="absolute top-3 right-3 flex items-center gap-2">
@@ -346,9 +305,9 @@ export const JobContentPreview: React.FC<JobContentPreviewProps> = ({
             {copiedMarkdown ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
           </button>
         </div>
-        <span className="block p-8 rounded-3xl bg-slate-950 border border-slate-800 font-mono text-[13px] leading-relaxed text-indigo-100/90 whitespace-pre-wrap select-all shadow-2xl overflow-hidden">
+        <span className="block p-5 sm:p-8 rounded-3xl bg-slate-950 border border-slate-800 font-mono text-xs sm:text-[13px] leading-relaxed text-indigo-100/90 whitespace-pre-wrap select-all shadow-2xl overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none" />
-          {content}
+          {normalizedMarkdown || content}
         </span>
       </span>
     );

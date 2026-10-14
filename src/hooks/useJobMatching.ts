@@ -347,6 +347,16 @@ export const getMatchBreakdown = (profile: JobSeekerProfile | null, job: Job | n
     reasons.push(`💡 Employer Flexibility: ${notes || options.join('; ')}`);
   }
 
+  // 6. Cultural Values & Culture-Add Alignment
+  const candCulture = profile.culturalPreferences || [];
+  const jobCulture = job.culturalValuesPillars || [];
+  if (candCulture.length > 0 && jobCulture.length > 0) {
+    const sharedValues = candCulture.filter(v => jobCulture.includes(v));
+    if (sharedValues.length > 0) {
+      reasons.push(`✨ Culture-Add Alignment: Shared ${sharedValues.length} core cultural value pillars`);
+    }
+  }
+
   return {
     overallScore: scoreNum,
     reasons: reasons.length > 0 ? reasons : ['General qualifications and role category match'],
@@ -410,6 +420,15 @@ export const calculateMatchScore = (profile: JobSeekerProfile, job: Job): number
     }
   } else {
     score += 0.10;
+  }
+
+  // 5. Cultural Values Overlap Bonus (up to 5%)
+  const candCulture = profile.culturalPreferences || [];
+  const jobCulture = job.culturalValuesPillars || [];
+  if (candCulture.length > 0 && jobCulture.length > 0) {
+    const sharedCount = candCulture.filter(v => jobCulture.includes(v)).length;
+    const bonus = Math.min(sharedCount * 0.02, 0.05);
+    score += bonus;
   }
 
   return Math.min(Math.round(score * 100) / 100, 1.0);

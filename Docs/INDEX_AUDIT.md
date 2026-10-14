@@ -37,23 +37,25 @@ This document tracks all active, completed, and recurring system audits for Asce
 - **Service Transition (Practice 4.2.1)**: Change pre-flight validation gates enforce clean linting and compilation before release promotions.
 - **Incident & Problem Management (Practice 4.2.2 & 4.2.3)**: Root-Cause Analysis (RCA) logging active in `/Docs/CHANGELOG_DEV.md`.
 - **Configuration Item (CI) Audit (Practice 4.2.4)**:
-  - `package.json`: v0.5.26 (Audited & Synced)
+  - `package.json`: v0.5.30 (Audited & Synced)
   - `metadata.json`: Name, capabilities, frame permissions (Audited & Synced)
-  - `src/config.ts`: Bounded static configuration (Audited & Active)
-  - `src/types/index.ts`: Shared domain interfaces (Audited & Active)
+  - `src/config.ts`: Bounded static configuration v0.5.30 (Audited & Active)
+  - `src/types.ts`: Shared domain interfaces (Audited & Active)
   - `/Docs/STRUCTURE.md`: Exact tree hierarchy (Audited & Synced)
 - **Release Management (Practice 4.2.5)**: High-frequency engineering log (`CHANGELOG_DEV.md`) synchronized with public milestone changelog (`CHANGELOG.md`).
 
 ---
 
 ### 3. WCAG 2.1 & 2.2 AA Accessibility Audit
-- **Color Contrast**: All light mode and dark mode palettes pass WCAG AA (>= 4.5:1 body, >= 3.0:1 controls).
-- **Multi-Modal Indicators**: Statuses, badges, and trust indicators combine iconography, descriptive text labels, and color hues.
+- **Color Contrast**: All light mode and dark mode palettes pass WCAG AA (>= 4.5:1 body, >= 3.0:1 controls). Deterministic company monogram palette features verified >= 4.5:1 contrast against white typography.
+- **Multi-Modal Indicators**: Statuses, badges, and trust indicators combine iconography, descriptive text labels, and color hues. Company logos feature explicit alt text and monogram lettermarks with role="img".
 - **Keyboard Navigation**: 100% interactive elements accessible via `Tab`/`Shift+Tab` with clear `focus-visible:ring-2` focus rings.
 - **Form Associations**: Input controls linked with associated labels and accessible placeholders.
 
 ---
 
 ### 4. Active & Completed Audit Records
+- **Audit AUD-2026-004 (Completed 2026-10-13)**: Multi-Tier Company Logo & Brand Identity Resolver (Approach A) verification (`src/utils/companyLogoResolver.ts`, `src/components/CompanyLogo.tsx`, `src/components/CleanEmployerContactCard.tsx`). 100% green test suite across 19 unit test suites with zero failures and zero compiler warnings.
+- **Audit AUD-2026-003 (Completed 2026-10-13)**: Whitespace Normalization (Approach A), Salary Normalization, and TPU/Tacoma Location Requirements Engine verification (`src/utils/textWhitespaceNormalizer.ts`, `src/utils/salarySanitizer.ts`, `src/utils/locationAndWorkplaceSanitizer.ts`, `src/components/JobContentPreview.tsx`). 100% green test suite across 18 unit test suites with zero failures and zero compiler warnings.
 - **Audit AUD-2026-002 (Completed 2026-10-04)**: Comprehensive Deduplication, Validation, and Merge Engine verification (`src/utils/identityGovernance.ts`, `src/utils/jobDedup.ts`, `src/utils/profileMerge.ts`, `src/utils/materialShiftEngine.ts`, `src/utils/applicationLifecycle.ts`). 100% green test suite across 5 unit test suites with zero failures.
 - **Audit AUD-2026-001 (Completed 2026-09-21)**: Full-system governance baseline audit against ITIL v4, NASA JPL Power of 10, WCAG AA, and RapportVerse bridge specifications.

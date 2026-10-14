@@ -130,6 +130,7 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
   ]);
   const [editWillingToConsiderNotes, setEditWillingToConsiderNotes] = useState('');
   const [editSettlingOptions, setEditSettlingOptions] = useState<string[]>([]);
+  const [editCulturalPillars, setEditCulturalPillars] = useState<string[]>(['originality', 'excellence_empathy', 'uncomfortable_transparency']);
   
   // Mandatory Audit Justification State
   const [editReasonCategory, setEditReasonCategory] = useState<JobRevision['editReasonCategory']>('candidate_info_request');
@@ -223,6 +224,9 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
     );
     setEditSettlingOptions(
       j.settlingOptions || j.parsedCriteria?.settlingOptions || []
+    );
+    setEditCulturalPillars(
+      j.culturalValuesPillars || ['originality', 'excellence_empathy', 'uncomfortable_transparency']
     );
     setEditReasonNotes('');
     setSaveSuccess(null);
@@ -373,6 +377,7 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
         preferredSkills: prefSkillsArr,
         willingToConsiderNotes: editWillingToConsiderNotes.trim(),
         settlingOptions: editSettlingOptions,
+        culturalValuesPillars: editCulturalPillars,
         currentVersion: nextVersionNumber,
         updatedAt: serverTimestamp(),
         companyId: companyId || user.uid,
@@ -858,6 +863,67 @@ export const JobRequisitionEditor: React.FC<JobRequisitionEditorProps> = ({
                         >
                           <span className="text-[11px] truncate">{b}</span>
                           {isChecked && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Fast Company Culture-Add Value Pillars */}
+                <div className="p-4 bg-indigo-50/40 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-800/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-extrabold text-indigo-900 dark:text-indigo-200 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Fast Company 26 Culture-Add Values (Select up to 5)
+                    </label>
+                    <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/80 px-2 py-0.5 rounded-md">
+                      Powers Qualitative Culture Matching
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Tag the core cultural values this team emphasizes (e.g. Gracious Professionalism, Culture-Add, Uncomfortable Transparency, Pacing & Rest).
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+                    {[
+                      { id: 'originality', label: '1. Originality' },
+                      { id: 'excellence_empathy', label: '2. Excellence & Empathy' },
+                      { id: 'community_engagement', label: '3. Community Engagement' },
+                      { id: 'innovation_behavior', label: '4. Innovation Behavior' },
+                      { id: 'uncomfortable_transparency', label: '5. Transparency' },
+                      { id: 'sense_of_belonging', label: '6. Belonging' },
+                      { id: 'stewardship', label: '7. Stewardship' },
+                      { id: 'culture_add_hiring', label: '8. Culture-Add' },
+                      { id: 'accountability_without_fault', label: '10. Accountability' },
+                      { id: 'people_first_sequence', label: '11. People First' },
+                      { id: 'disciplined_speed', label: '13. Pacing & Speed' },
+                      { id: 'kindness_vs_niceness', label: '24. Kindness' },
+                      { id: 'pacing_and_endurance', label: '25. Rest & Pacing' }
+                    ].map(val => {
+                      const isSel = editCulturalPillars.includes(val.id);
+                      return (
+                        <button
+                          type="button"
+                          key={val.id}
+                          onClick={() => {
+                            if (isSel) {
+                              setEditCulturalPillars(prev => prev.filter(v => v !== val.id));
+                            } else {
+                              if (editCulturalPillars.length >= 5) {
+                                alert('You can select up to 5 cultural value pillars per requisition.');
+                                return;
+                              }
+                              setEditCulturalPillars(prev => [...prev, val.id]);
+                            }
+                          }}
+                          className={`p-2 rounded-xl border text-left flex items-center justify-between gap-1 transition-all cursor-pointer text-[11px] ${
+                            isSel
+                              ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-sm'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-indigo-400'
+                          }`}
+                        >
+                          <span className="truncate">{val.label}</span>
+                          {isSel && <Check className="w-3.5 h-3.5 shrink-0" />}
                         </button>
                       );
                     })}

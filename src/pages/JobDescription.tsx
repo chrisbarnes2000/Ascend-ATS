@@ -8,9 +8,14 @@ import { motion } from 'motion/react';
 import { 
   Briefcase, MapPin, DollarSign, Target, CheckCircle2, ArrowLeft, Loader2, Check, Sparkles, 
   AlertTriangle, ShieldCheck, HelpCircle, UserCheck, XCircle, Clock, Calendar, Plus, 
-  MessageSquare, Send, X, Layers, Award, ShieldAlert, Info, FileText, AlignLeft, Copy, Lock
+  MessageSquare, Send, X, Layers, Award, ShieldAlert, Info, FileText, AlignLeft, Copy, Lock, Flag, EyeOff
 } from 'lucide-react';
 import { JobContentPreview, JobPreviewMode, stripMarkdownFormatting } from '../components/JobContentPreview';
+import { ReportJobModal } from '../components/ReportJobModal';
+import { IgnoreJobModal } from '../components/IgnoreJobModal';
+import { CleanEmployerContactCard } from '../components/CleanEmployerContactCard';
+import { normalizeJobSalaryValue } from '../utils/salarySanitizer';
+import { parseAndSanitizeLocationAndWorkplace } from '../utils/locationAndWorkplaceSanitizer';
 
 function getTimeAgo(dateInput: any): string {
   if (!dateInput) return 'Recently';
@@ -69,9 +74,11 @@ export const JobDescription = () => {
   } | null>(null);
   const [isAddingSkills, setIsAddingSkills] = useState(false);
 
-  // Recruiter Role Clarification Modal State
+  // Recruiter Role Clarification & Reporting Modal State
   const [showClarificationModal, setShowClarificationModal] = useState(false);
   const [showVersionHistoryModal, setShowVersionHistoryModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showIgnoreModal, setShowIgnoreModal] = useState(false);
   const [clarificationTopic, setClarificationTopic] = useState('Compensation & Salary Transparency');
   const [clarificationMessage, setClarificationMessage] = useState('');
   const [isSendingClarification, setIsSendingClarification] = useState(false);
@@ -382,7 +389,7 @@ export const JobDescription = () => {
 
   if (error || !job) {
     return (
-      <div className="min-h-screen pt-24 pb-12 px-4 w-full md:w-[75vw] max-w-none mx-auto">
+      <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 md:px-8 w-full max-w-7xl mx-auto">
         <button onClick={() => { window.location.hash = ''; }} className="flex items-center gap-2 mb-8 text-slate-500 hover:text-slate-800 dark:hover:text-slate-300">
            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </button>
@@ -394,10 +401,11 @@ export const JobDescription = () => {
   }
 
   const missingSkillsList = skillComparison.requiredJobSkills.filter(s => !s.isMatched).map(s => s.name);
+  const locInfo = parseAndSanitizeLocationAndWorkplace(job);
 
   return (
-    <div className="min-h-screen pt-24 pb-12 px-4 w-full md:w-[75vw] max-w-none mx-auto">
-      <button onClick={() => { window.location.hash = ''; }} className="flex items-center gap-2 mb-8 text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 font-medium">
+    <div className="min-h-screen pt-20 sm:pt-24 pb-12 px-3 sm:px-6 md:px-8 w-full max-w-7xl mx-auto">
+      <button onClick={() => { window.location.hash = ''; }} className="flex items-center gap-2 mb-6 sm:mb-8 text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 font-medium text-xs sm:text-sm">
          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
       </button>
 
@@ -405,20 +413,20 @@ export const JobDescription = () => {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm mb-8"
+        className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-200 dark:border-slate-800 shadow-sm mb-6 sm:mb-8"
       >
-        <div className="flex flex-col md:flex-row justify-between items-start mb-8 gap-6">
-          <div className="flex gap-6 items-start">
-             <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-shrink-0 items-center justify-center">
-               <Briefcase className="w-8 h-8 text-slate-400" />
+        <div className="flex flex-col lg:flex-row justify-between items-start mb-6 sm:mb-8 gap-4 sm:gap-6">
+          <div className="flex gap-3 sm:gap-6 items-start w-full lg:w-auto">
+             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-shrink-0 items-center justify-center">
+               <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-slate-400" />
              </div>
-             <div>
-               <h1 className="text-3xl font-bold mb-2 text-slate-900 dark:text-slate-100">{job.title}</h1>
-               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                 <p className="text-xl text-slate-600 dark:text-slate-400 font-medium flex flex-wrap items-center gap-2">
+             <div className="min-w-0 flex-1">
+               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-1.5 sm:mb-2 text-slate-900 dark:text-slate-100 break-words leading-snug sm:leading-tight">{job.title}</h1>
+               <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1">
+                 <p className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-400 font-medium flex flex-wrap items-center gap-1.5 sm:gap-2">
                    {job.isClientConfidential ? (
-                     <span className="text-slate-400 dark:text-slate-500 italic flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/50 px-3 py-1 rounded-xl border border-slate-100 dark:border-slate-800">
-                       <Lock className="w-4 h-4" /> Confidential Client
+                     <span className="text-slate-400 dark:text-slate-500 italic flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/50 px-2.5 py-0.5 rounded-lg border border-slate-100 dark:border-slate-800 text-xs sm:text-sm">
+                       <Lock className="w-3.5 h-3.5" /> Confidential Client
                      </span>
                    ) : (
                      <a 
@@ -430,8 +438,8 @@ export const JobDescription = () => {
                    )}
 
                    {job.posterFirmName && (
-                     <span className="text-base text-slate-500 dark:text-slate-500 font-medium ml-1">
-                       posted/managed by <span className="font-bold text-indigo-600 dark:text-indigo-400">{job.posterFirmName}</span>
+                     <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-500 font-medium ml-1">
+                       managed by <span className="font-bold text-indigo-600 dark:text-indigo-400">{job.posterFirmName}</span>
                      </span>
                    )}
                  </p>
@@ -439,39 +447,88 @@ export const JobDescription = () => {
              </div>
           </div>
 
-          <div className="flex flex-wrap sm:flex-nowrap gap-3 items-center w-full md:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 w-full lg:w-auto items-center">
+             <button 
+                type="button"
+                onClick={() => setShowReportModal(true)}
+                className="w-full sm:w-auto px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
+                title="Report incorrect company or recruiter extraction"
+             >
+                <Flag className="w-4 h-4" />
+                Report Posting
+             </button>
+
+             <button 
+                type="button"
+                onClick={() => setShowIgnoreModal(true)}
+                className="w-full sm:w-auto px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs shrink-0 cursor-pointer"
+                title="Ignore or pass on this job posting"
+             >
+                <EyeOff className="w-4 h-4 text-slate-400" />
+                Not Interested / Ignore
+             </button>
+
              <button 
                 onClick={() => setShowClarificationModal(true)}
-                className="px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-xs shrink-0"
+                className="w-full sm:w-auto px-3.5 py-2.5 sm:px-5 sm:py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition-colors flex items-center justify-center gap-2 shadow-xs shrink-0"
              >
                 <HelpCircle className="w-4 h-4 text-indigo-500" />
-                Request Role Clarification
+                Clarify Role
              </button>
 
              <button 
                 onClick={handleApply}
                 disabled={isApplying || hasApplied}
-                className={`px-8 py-3 rounded-xl shadow-lg transition-colors font-bold flex items-center justify-center gap-2 shrink-0 ${
+                className={`w-full sm:w-auto px-5 py-2.5 sm:px-8 sm:py-3 rounded-xl shadow-lg transition-colors font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shrink-0 ${
                   hasApplied 
                     ? 'bg-emerald-500 text-white cursor-default shadow-none' 
                     : 'bg-blue-600 hover:bg-blue-700 text-white'
                 } disabled:opacity-80`}
              >
-                {isApplying && <Loader2 className="w-5 h-5 animate-spin" />}
-                {!isApplying && hasApplied && <Check className="w-5 h-5" />}
+                {isApplying && <Loader2 className="w-4 h-4 animate-spin" />}
+                {!isApplying && hasApplied && <Check className="w-4 h-4" />}
                 {hasApplied ? 'Applied' : 'Apply Now'}
              </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-4 mb-8">
-           <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 font-medium text-sm border border-slate-100 dark:border-slate-700">
-             <MapPin className="w-4 h-4 text-slate-400" /> Remote
+        <div className="flex flex-wrap gap-2.5 sm:gap-3 mb-8">
+           <div className={`flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm border shadow-xs ${
+             locInfo.workplaceType === 'Hybrid'
+               ? 'bg-purple-50 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-200/80 dark:border-purple-800/80'
+               : locInfo.workplaceType === 'On-Site'
+               ? 'bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/80'
+               : 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/80'
+           }`}>
+             <MapPin className={`w-4 h-4 shrink-0 ${
+               locInfo.workplaceType === 'Hybrid' ? 'text-purple-600 dark:text-purple-400' :
+               locInfo.workplaceType === 'On-Site' ? 'text-amber-600 dark:text-amber-400' :
+               'text-emerald-600 dark:text-emerald-400'
+             }`} />
+             <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+               locInfo.workplaceType === 'Hybrid' ? 'bg-purple-200/70 text-purple-900 dark:bg-purple-900/60 dark:text-purple-200' :
+               locInfo.workplaceType === 'On-Site' ? 'bg-amber-200/70 text-amber-900 dark:bg-amber-900/60 dark:text-amber-200' :
+               'bg-emerald-200/70 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200'
+             }`}>
+               {locInfo.workplaceType}
+             </span>
+             <span>
+               {locInfo.workplaceSummary.includes('•') ? locInfo.workplaceSummary.split('•')[1].trim() + ' • ' : ''}
+               {locInfo.location}
+             </span>
            </div>
+
+           {locInfo.hasTravelRequirement && (
+             <div className="flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 rounded-xl font-bold text-xs sm:text-sm border border-amber-200/80 dark:border-amber-800/80 shadow-xs">
+               <span className="text-sm">🚗</span>
+               <span>{locInfo.travelRequirement}</span>
+             </div>
+           )}
+
            {job.parsedCriteria?.salaryRange && (
-             <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 font-medium text-sm border border-slate-100 dark:border-slate-700">
-               <DollarSign className="w-4 h-4 text-slate-400" /> 
-               ${(job.parsedCriteria.salaryRange.min / 1000).toFixed(0)}k - ${(job.parsedCriteria.salaryRange.max / 1000).toFixed(0)}k
+             <div className="flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm border border-slate-200/70 dark:border-slate-700/70 shadow-xs">
+               <DollarSign className="w-4 h-4 text-emerald-500 shrink-0" /> 
+               ${(normalizeJobSalaryValue(job.parsedCriteria.salaryRange.min, 55000) / 1000).toFixed(0)}k - ${(normalizeJobSalaryValue(job.parsedCriteria.salaryRange.max, 85000) / 1000).toFixed(0)}k
              </div>
            )}
         </div>
@@ -567,6 +624,16 @@ export const JobDescription = () => {
             <Clock className="w-3.5 h-3.5" />
             <span>View Version History & Audit Trail ({(job.revisions || []).length})</span>
           </button>
+        </div>
+
+        {/* Clean Employer Contact Card (Scrubbed Dice Boilerplate & Verified Entity Details) */}
+        <div className="mt-8 mb-6">
+          <CleanEmployerContactCard
+            companyName={job.companyName}
+            posterFirmName={job.posterFirmName}
+            location={job.location}
+            description={job.description}
+          />
         </div>
 
         {/* Section: About the Role (Selector 1 target) */}
@@ -1339,27 +1406,49 @@ export const JobDescription = () => {
                   This job posting is on its initial release (v1.0) with no subsequent edits.
                 </div>
               ) : (
-                [...(job.revisions || [])].reverse().map((rev, idx) => (
-                  <div key={rev.id || idx} className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="bg-indigo-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-md">
-                        {rev.versionNumber}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(rev.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
-                      </span>
-                    </div>
+                [...(job.revisions || [])].reverse().map((rev, idx) => {
+                  const revDate = rev.timestamp?.toDate ? rev.timestamp.toDate() : new Date(rev.timestamp);
+                  const formattedDate = isNaN(revDate.getTime()) ? 'Recently' : revDate.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+                  return (
+                    <div key={rev.id || idx} className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="bg-indigo-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-md">
+                          {rev.versionNumber}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {formattedDate}
+                        </span>
+                      </div>
 
-                    <p className="text-slate-800 dark:text-slate-200 font-medium">
-                      <strong>HR Note:</strong> "{rev.editReasonNotes}"
-                    </p>
+                      <p className="text-slate-800 dark:text-slate-200 font-medium">
+                        <strong>HR / Admin Audit Note:</strong> "{rev.editReasonNotes}"
+                      </p>
 
-                    <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200/50 dark:border-slate-800/50">
-                      <span>Salary: ${((rev.newValues.salaryMin || 80000) / 1000).toFixed(0)}k - ${((rev.newValues.salaryMax || 130000) / 1000).toFixed(0)}k</span>
-                      <span className="capitalize text-indigo-600 dark:text-indigo-400 font-semibold">{rev.editReasonCategory.replace(/_/g, ' ')}</span>
+                      {rev.newValues?.companyName && rev.previousValues?.companyName && rev.newValues.companyName !== rev.previousValues.companyName && (
+                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                          <span>Hiring Entity:</span>
+                          <span className="line-through text-slate-400">{rev.previousValues.companyName}</span>
+                          <span>➔</span>
+                          <span className="font-bold">{rev.newValues.companyName}</span>
+                        </div>
+                      )}
+
+                      {rev.newValues?.posterFirmName !== undefined && rev.previousValues?.posterFirmName !== rev.newValues.posterFirmName && (
+                        <div className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1">
+                          <span>Recruiter Agency:</span>
+                          <span className="line-through text-slate-400">{rev.previousValues.posterFirmName || 'Direct Hire'}</span>
+                          <span>➔</span>
+                          <span className="font-bold">{rev.newValues.posterFirmName || 'Direct Hire'}</span>
+                        </div>
+                      )}
+
+                      <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200/50 dark:border-slate-800/50">
+                        <span>Salary: ${((rev.newValues?.salaryMin || 80000) / 1000).toFixed(0)}k - ${((rev.newValues?.salaryMax || 130000) / 1000).toFixed(0)}k</span>
+                        <span className="capitalize text-indigo-600 dark:text-indigo-400 font-semibold">{(rev.editReasonCategory || 'update').replace(/_/g, ' ')}</span>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -1373,6 +1462,31 @@ export const JobDescription = () => {
             </div>
           </motion.div>
         </div>
+      )}
+
+      {showReportModal && (
+        <ReportJobModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          job={{
+            id: job.id,
+            title: job.title,
+            companyName: job.companyName,
+            posterFirmName: job.posterFirmName
+          }}
+        />
+      )}
+
+      {showIgnoreModal && (
+        <IgnoreJobModal
+          isOpen={showIgnoreModal}
+          onClose={() => setShowIgnoreModal(false)}
+          job={{
+            id: job.id,
+            title: job.title,
+            companyName: job.companyName
+          }}
+        />
       )}
     </div>
   );

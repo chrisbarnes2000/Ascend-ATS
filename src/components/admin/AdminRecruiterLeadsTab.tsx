@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Mail, Plus, Trash2 } from 'lucide-react';
+import { Mail, Plus, Trash2, Sparkles } from 'lucide-react';
 
 interface AdminRecruiterLeadsTabProps {
   activeLeads: any[];
@@ -7,6 +7,7 @@ interface AdminRecruiterLeadsTabProps {
   onSyncLeads: () => void;
   onDeleteLead: (id: string) => void;
   onInviteLead: (lead: any) => void;
+  onImportFromRoster?: () => void;
 }
 
 export function AdminRecruiterLeadsTab({
@@ -14,7 +15,8 @@ export function AdminRecruiterLeadsTab({
   loadingLeads,
   onSyncLeads,
   onDeleteLead,
-  onInviteLead
+  onInviteLead,
+  onImportFromRoster
 }: AdminRecruiterLeadsTabProps) {
   return (
     <motion.div
@@ -33,9 +35,20 @@ export function AdminRecruiterLeadsTab({
               Recruiters extracted from candidate outreach imports (Dice, GovJobs, and direct reach-outs).
             </p>
           </div>
-          <button onClick={onSyncLeads} className="px-6 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all cursor-pointer">
-            Sync Recruiter Leads ({activeLeads.length})
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {onImportFromRoster && (
+              <button 
+                onClick={onImportFromRoster} 
+                className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Import from Network Roster</span>
+              </button>
+            )}
+            <button onClick={onSyncLeads} className="px-5 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all cursor-pointer">
+              Sync Ingested Leads ({activeLeads.length})
+            </button>
+          </div>
         </div>
 
         <div className="max-h-[550px] overflow-y-auto">

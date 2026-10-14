@@ -10,8 +10,11 @@ import { DeiAccommodationsEditor } from '../components/profile/DeiAccommodations
 import { SectionOrderEditor } from '../components/profile/SectionOrderEditor';
 import { SkillsEditor } from '../components/profile/SkillsEditor';
 import { LocationEditor } from '../components/profile/LocationEditor';
+import { IndustryEditor } from '../components/profile/IndustryEditor';
+import { TargetIndicatorsEditor } from '../components/profile/TargetIndicatorsEditor';
 import { JsonProfileUpload } from '../components/JsonProfileUpload';
-import { Loader2, Save, ArrowLeft, Shield, FileCode, Heart, Move, X, Zap } from 'lucide-react';
+import { sanitizeFirestorePayload } from '../utils/firestoreSanitizer';
+import { Loader2, Save, ArrowLeft, Shield, FileCode, Heart, Move, X, Zap, CheckCircle2, Target } from 'lucide-react';
 
 const defaultPrivacy: PrivacySettings = {
   isPublic: false,
@@ -40,8 +43,10 @@ export const ProfileEditor = () => {
   const [profile, setProfile] = useState<Partial<JobSeekerProfile> | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'basics' | 'experience' | 'dei_accommodations' | 'privacy' | 'layout_ordering' | 'import_json'>('basics');
+  const [activeTab, setActiveTab] = useState<'basics' | 'targets' | 'experience' | 'skills' | 'dei_accommodations' | 'privacy' | 'layout_ordering' | 'import_json'>('basics');
   const [customBenefit, setCustomBenefit] = useState('');
+
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const toggleBenefit = (benefit: string) => {
     if (!profile) return;
@@ -123,16 +128,20 @@ export const ProfileEditor = () => {
   const handleSave = async () => {
     if (!user || !profile) return;
     setSaving(true);
+    setNotification(null);
     try {
       const profileRef = doc(db, `users/${user.uid}/profiles/main`);
-      await setDoc(profileRef, {
+      const payload = sanitizeFirestorePayload({
         ...profile,
         updatedAt: serverTimestamp()
-      }, { merge: true });
-      alert("Profile Saved!");
-    } catch (err) {
+      });
+      await setDoc(profileRef, payload, { merge: true });
+      setNotification({ type: 'success', message: 'Profile saved successfully!' });
+      setTimeout(() => setNotification(null), 4000);
+    } catch (err: any) {
       console.error("Error saving profile", err);
-      alert("Error saving profile");
+      setNotification({ type: 'error', message: err?.message || 'Error saving profile.' });
+      setTimeout(() => setNotification(null), 5000);
     } finally {
       setSaving(false);
     }
@@ -161,6 +170,35 @@ export const ProfileEditor = () => {
           </button>
         </div>
 
+        {notification && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mb-6 p-4 rounded-2xl border flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 ${
+              notification.type === 'success'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {notification.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              ) : (
+                <X className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+              )}
+              <span className="text-sm font-semibold">{notification.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNotification(null)}
+              className="p-1 rounded-lg hover:opacity-75 focus-visible:ring-2 focus-visible:ring-current"
+              aria-label="Dismiss notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col md:flex-row min-h-[600px]">
           {/* Sidebar */}
           <div className="w-full md:w-64 bg-slate-50 dark:bg-slate-900/50 border-r border-slate-100 dark:border-slate-800 p-6 flex flex-col gap-2">
@@ -169,6 +207,12 @@ export const ProfileEditor = () => {
               className={`text-left px-4 py-3 rounded-xl font-medium transition-all ${activeTab === 'basics' ? 'bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             >
               Basic Info
+            </button>
+            <button 
+              onClick={() => setActiveTab('targets')}
+              className={`text-left px-4 py-3 rounded-xl font-medium transition-all flex items-center justify-between ${activeTab === 'targets' ? 'bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+              Target Indicators <Target className="w-4 h-4 text-blue-500" />
             </button>
             <button 
               onClick={() => setActiveTab('experience')}
@@ -225,110 +269,23 @@ export const ProfileEditor = () => {
                   info={profile.personalInfo} 
                   onChange={(info) => setProfile({ ...profile, personalInfo: info })} 
                 />
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Target Role</label>
-                  <input 
-                    type="text" 
-                    value={profile.targetRole || ''}
-                    onChange={(e) => setProfile({ ...profile, targetRole: e.target.value })}
-                    placeholder="e.g. Senior Product Manager"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-950 dark:border-slate-800 text-slate-900 dark:text-slate-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Target Industry</label>
-                  <input 
-                    type="text" 
-                    value={profile.targetIndustry || ''}
-                    onChange={(e) => setProfile({ ...profile, targetIndustry: e.target.value })}
-                    placeholder="e.g. HealthTech, FinTech"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-950 dark:border-slate-800 text-slate-900 dark:text-slate-100"
-                  />
-                </div>
                 
-                <LocationEditor
-                  locations={profile.targetLocations || []}
-                  onChange={(locs) => setProfile({ ...profile, targetLocations: locs })}
+                {/* Target Indicators Sub-Section */}
+                <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
+                  <TargetIndicatorsEditor 
+                    profile={profile as JobSeekerProfile} 
+                    onChange={(updates) => setProfile((prev) => prev ? { ...prev, ...updates } : updates)} 
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'targets' && profile && (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <TargetIndicatorsEditor 
+                  profile={profile as JobSeekerProfile} 
+                  onChange={(updates) => setProfile((prev) => prev ? { ...prev, ...updates } : updates)} 
                 />
-                
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Target Salary</label>
-                  <input 
-                    type="number" 
-                    value={profile.targetSalary || 0}
-                    onChange={(e) => setProfile({ ...profile, targetSalary: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-950 dark:border-slate-800 text-slate-900 dark:text-slate-100"
-                  />
-                </div>
-
-                <div className="border-t border-slate-200 dark:border-slate-800 pt-6">
-                  <h3 className="text-base font-bold text-slate-950 dark:text-slate-50 mb-1">Target Benefit Requests</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-normal">
-                    Select the workplace benefits and perks that are most critical to your target compensation package. These can guide algorithm-assisted matching dynamically.
-                  </p>
-
-                  {/* Standard Benefit Tags */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {standardBenefits.map((benefit) => {
-                      const isActive = (profile.targetBenefits || []).includes(benefit);
-                      return (
-                        <button
-                          key={benefit}
-                          type="button"
-                          onClick={() => toggleBenefit(benefit)}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
-                            isActive
-                              ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 shadow-sm"
-                              : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          {benefit}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Custom Benefits Entry */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Custom Benefit Request</label>
-                    <form onSubmit={addCustomBenefit} className="flex gap-2 mb-3">
-                      <input
-                        type="text"
-                        value={customBenefit}
-                        onChange={(e) => setCustomBenefit(e.target.value)}
-                        placeholder="e.g. Stock Options, Remote Fridays..."
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-sm"
-                      />
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-lg font-bold text-xs transition-colors"
-                      >
-                        Add Custom
-                      </button>
-                    </form>
-
-                    {/* Display Custom Benefits if they are not standard */}
-                    {profile.targetBenefits && profile.targetBenefits.filter(b => !standardBenefits.includes(b)).length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {profile.targetBenefits.filter(b => !standardBenefits.includes(b)).map((benefit) => (
-                          <span
-                            key={benefit}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full text-xs font-medium border border-slate-200 dark:border-slate-700"
-                          >
-                            {benefit}
-                            <button
-                              type="button"
-                              onClick={() => removeCustomBenefit(benefit)}
-                              className="hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full p-0.5 transition-colors"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             )}
 

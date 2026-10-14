@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.29] - 2026-10-13
+### Added & Enhanced
+- **Location & Workplace Requirement Sanitization (TPU / City of Tacoma Hybrid & Travel Flagging)**:
+  - Built deterministic location normalization for municipal and utility entities (such as City of Tacoma, Tacoma Public Utilities / TPU, Tacoma Power, Tacoma Water, Pierce County) standardizing them consistently to `Tacoma, WA`.
+  - Added intelligent workplace requirement detection that detects customer travel (client site visits, field operations) or partial in-office telework policies, accurately classifying roles as **Hybrid** with explicit requirement flags rather than misrepresenting them as pure Remote.
+- **High-Contrast Workplace & Requirement Flags across Top Matches & Job Details**:
+  - Upgraded Top Match cards and the Job Description page with high-contrast, accessible visual badges (`[HYBRID]`, `[ON-SITE]`, `[REMOTE]`), distinct location labels, and dedicated travel requirement alerts (`🚗 Travel to customer sites required`).
+- **Defensive Salary Sanitizer & Market Insights Top 5 In-Demand Skills Expansion**:
+  - Created automated salary normalization detecting and correcting cent-stored integers (e.g., $105,643 stored as 10564320) and annualizing hourly rates, eliminating skewed averages ($1.8M+) in Market Insights.
+  - Expanded Market Insights from single-skill display to **Top 5 Skills in Demand** with numerical rank badges (1–5) and role counts.
+- **Application Pipeline Full-Width Canvas & Dynamic Market Insights Aggregation**:
+  - Streamlined the Application Pipeline view by removing the right-side sidebar, giving candidates a full-width canvas for managing application stages.
+  - Connected Market Insights to compute real-time salary averages and demand statistics directly from active matching job feeds.
+- **Candidate Job Ignore / Pass Option & Automatic Privacy Firewall Company Exclusion**:
+  - Added an intuitive "Not Interested / Ignore" option with optional reason selection (poor match fit, salary below expectation, location mismatch) and user feedback notes.
+  - Linked the ignore action to the candidate's privacy firewall (`privacy.excludedCompanies`), allowing 1-click blocking of future postings from excluded employers without manual repetition.
+- **Enterprise Company Logo Integration with Briefcase Fallback**:
+  - Created automatic domain resolution and Clearbit logo fetching for enterprise employers (e.g. Bank of America), paired with an instant fallback to standard Briefcase icons for missing or broken assets.
+- **Mobile Top Match & Job Details Compaction & Responsive Ergonomics**:
+  - Optimized top match cards and job description headers for mobile screens, eliminating right-side overhangs, adjusting typography hierarchies, and stacking action buttons cleanly.
+
+## [0.5.28] - 2026-10-04
+### Added & Enhanced
+- **Interactive Culture-Add & Recruiter Partnership Matrix**:
+  - Integrated Fast Company Impact Council research (*26 Cultural Values*) and Manpower recruiting insights (*5 Keys to Working with a Recruiter*) into a unified, high-fidelity, interactive **`RecruiterCultureMatrix.tsx`** dashboard component.
+  - Enabled candidates (seekers) to select top cultural priorities, configure recruiter communication frequencies, expected base boundaries, video-call requirements, and consult reverse-interviewing probe questions for each value.
+  - Added a dedicated "Culture & Recruiter Blueprint" sub-panel for company owners and recruiters to establish clear operational stances on values and candidate SLAs.
+- **Cultural Value Alignment Matching & Red Flag Auditing**:
+  - Upgraded the qualitative matching engine (`useJobMatching.ts`) to reward candidate-employer cultural pillar overlap with an alignment bonus (up to +5%) and detailed explanation text.
+  - Hardened the material shift detection engine (`materialShiftEngine.ts`) to check for cultural red flags and misleading promises (such as detecting "we are a family", "work hard play hard", and "relentless hustle"), issuing audit warnings on job requisitions.
+- **Full In-App Mounting**:
+  - Embedded the matrix inside the Candidate Dashboard and Company Management Workspace.
+  - Extended job requisition editors with multi-value culture selection.
+
 ## [0.5.26] - 2026-09-30
 ### Added & Enhanced
 - **Role-Based Access Control (RBAC) & Authentication Gateway for Browser Extension**:

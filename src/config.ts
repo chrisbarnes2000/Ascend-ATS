@@ -5,7 +5,7 @@
 export const STATIC_CONFIG = {
   APP: {
     NAME: 'Ascend ATS',
-    VERSION: '0.5.27',
+    VERSION: '0.5.30',
     PARTNER_NAME: 'RapportVerse',
     PARTNER_URL: 'https://rapprt.space',
     CREATOR: 'Chris Barnes',

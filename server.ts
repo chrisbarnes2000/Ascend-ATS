@@ -3,9 +3,12 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, collectionGroup, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, collectionGroup, query, where, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
 import * as pdfParseModule from 'pdf-parse';
+import axios from 'axios';
+import { IngestedJobData } from './src/types';
+import { localNlpParse } from './src/services/jobParser.service';
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
 // Load config from json. This is naive but works for the mock
@@ -76,6 +79,78 @@ async function startServer() {
       activeDefault: 'v2',
       geminiOnline: Boolean(ai)
     });
+  });
+
+  // Autocomplete Proxy with Firestore Caching (Google Places API New)
+  app.get('/api/autocomplete', async (req, res) => {
+    const queryParam = String(req.query.q || '').trim();
+    if (!queryParam) return res.status(400).json({ error: 'Query required' });
+    if (!db) return res.status(500).json({ error: 'Firestore not connected' });
+
+    try {
+      const cacheKey = encodeURIComponent(queryParam.toLowerCase());
+      // 1. Check cache
+      const cacheRef = doc(db, 'autocomplete_cache', cacheKey);
+      const cacheSnap = await getDoc(cacheRef);
+
+      if (cacheSnap.exists()) {
+        const cacheData = cacheSnap.data();
+        if (
+          cacheData &&
+          Array.isArray(cacheData.results) &&
+          cacheData.results.length > 0 &&
+          Date.now() - (cacheData.timestamp || 0) < 24 * 60 * 60 * 1000
+        ) {
+          return res.json(cacheData.results);
+        }
+      }
+
+      // 2. Call Google Maps Places API (New)
+      const apiKey = process.env.GOOGLE_MAPS_PLATFORM_KEY;
+      if (!apiKey) throw new Error('Google Maps API key not configured');
+
+      const response = await axios.post(
+        'https://places.googleapis.com/v1/places:autocomplete',
+        { input: queryParam },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': apiKey,
+          },
+        }
+      );
+
+      const predictions = ((response.data && response.data.suggestions) || [])
+        .map((s: any) => ({
+          place_id: s.placePrediction?.placeId || '',
+          description: s.placePrediction?.text?.text || '',
+          main_text: s.placePrediction?.structuredFormat?.mainText?.text || '',
+          secondary_text: s.placePrediction?.structuredFormat?.secondaryText?.text || '',
+        }))
+        .filter((p: any) => p.place_id && p.description);
+
+      // 3. Store in cache ONLY if results were returned (never poison cache with empty results)
+      if (predictions.length > 0) {
+        await setDoc(cacheRef, { results: predictions, timestamp: Date.now() });
+      }
+
+      res.json(predictions);
+    } catch (error: any) {
+      console.error('Autocomplete Error:', error?.response?.data || error?.message || error);
+      // Fallback for zip codes or general locations to guarantee high-resiliency UX
+      const isZip = /^\d{5}(-\d{4})?$/.test(queryParam);
+      if (isZip) {
+        return res.json([
+          {
+            place_id: `zip_${queryParam}`,
+            description: `${queryParam}, USA`,
+            main_text: queryParam,
+            secondary_text: 'United States',
+          },
+        ]);
+      }
+      res.json([]);
+    }
   });
 
   // Extension Profile & Role Status Check Endpoint
@@ -175,7 +250,7 @@ Required JSON Schema:
           let response;
           if (isPdf) {
             response = await ai.models.generateContent({
-              model: 'gemini-2.0-flash',
+              model: 'gemini-3.8-flash',
               contents: [
                 { role: 'user', parts: [{ text: promptV3 }, { inlineData: { data: fileContent, mimeType: 'application/pdf' } }] }
               ],
@@ -183,7 +258,7 @@ Required JSON Schema:
             });
           } else {
             response = await ai.models.generateContent({
-              model: 'gemini-2.0-flash',
+              model: 'gemini-3.8-flash',
               contents: `${promptV3}\n\nResume Text:\n${String(fileContent).substring(0, 6000)}`,
               config: { responseMimeType: 'application/json' }
             });
@@ -218,7 +293,7 @@ JSON Schema required:
           let response;
           if (isPdf) {
             response = await ai.models.generateContent({
-              model: 'gemini-2.0-flash',
+              model: 'gemini-3.8-flash',
               contents: [
                 { role: 'user', parts: [{ text: promptV2 }, { inlineData: { data: fileContent, mimeType: 'application/pdf' } }] }
               ],
@@ -226,7 +301,7 @@ JSON Schema required:
             });
           } else {
             response = await ai.models.generateContent({
-              model: 'gemini-2.0-flash',
+              model: 'gemini-3.8-flash',
               contents: `${promptV2}\n\nResume text:\n${String(fileContent).substring(0, 5000)}`,
               config: { responseMimeType: 'application/json' }
             });
@@ -334,7 +409,7 @@ Return JSON in this EXACT structure:
 }`;
 
           const response = await ai.models.generateContent({
-            model: 'gemini-3.6-flash',
+            model: 'gemini-3.8-flash',
             contents: prompt,
             config: { responseMimeType: 'application/json' }
           });
@@ -410,7 +485,7 @@ Provide a comprehensive, nuanced analysis in JSON format with two distinct secti
 Return ONLY valid JSON.`;
 
           const response = await ai.models.generateContent({
-            model: 'gemini-3.6-flash',
+            model: 'gemini-3.8-flash',
             contents: prompt,
             config: { responseMimeType: 'application/json' }
           });
@@ -565,224 +640,6 @@ Return ONLY valid JSON.`;
     return formattedLines.filter(Boolean).join('\n\n');
   }
 
-  interface IngestedJobData {
-    title: string;
-    companyName: string;
-    description: string;
-    requirements: string;
-    location: string;
-    workplaceType: 'Remote' | 'Hybrid' | 'On-Site';
-    salaryMin: number;
-    salaryMax: number;
-    requiredSkills: string[];
-    preferredSkills: string[];
-    benefits: string[];
-    extractedId: string;
-    isAiEnhanced: boolean;
-    insights: {
-      interviewQuestions: Array<{ question: string; answer: string }>;
-      unstatedExpectations: string[];
-      matchStrategy: string;
-    };
-    jobNumber?: string;
-    department?: string;
-    salaryType?: string;
-    expiresAt?: string;
-    sourceBoard?: string;
-  }
-
-  // High-Fidelity Local NLP / Text processing Helper (First Pass)
-  function localNlpParse(text: string, url?: string): IngestedJobData {
-    const normalizedText = text || '';
-    const lines = normalizedText.split('\n').map(l => l.trim()).filter(Boolean);
-
-    // 1. Title Extraction: Search first 8 lines for keyword matches
-    let title = 'Position Title';
-    const commonTitleKeywords = [
-      'engineer', 'developer', 'manager', 'designer', 'analyst', 'lead', 'architect', 
-      'expert', 'strategist', 'writer', 'consultant', 'accountant', 'director', 
-      'specialist', 'recruiter', 'officer', 'representative', 'consultant', 'coordinator'
-    ];
-    
-    for (const line of lines.slice(0, 8)) {
-      const lowerLine = line.toLowerCase();
-      if (line.length > 5 && line.length < 80 && commonTitleKeywords.some(kw => lowerLine.includes(kw))) {
-        title = line.replace(/^[•\-\*\s\d\.\#\/]+/, '').trim();
-        break;
-      }
-    }
-    if (title === 'Position Title' && lines.length > 0 && lines[0].length < 75) {
-      title = lines[0].replace(/^[•\-\*\s\d\.\#\/]+/, '').trim();
-    }
-
-    // 2. Company Name Extraction
-    let companyName = 'Inferred Employer';
-    if (url) {
-      try {
-        const parsedUrl = new URL(url);
-        const host = parsedUrl.hostname.replace('www.', '');
-        const parts = host.split('.');
-        if (parts.length > 1) {
-          companyName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    const companyRegex = /(?:about|at|join)\s+([A-Z][A-Za-z0-9\s]{2,25})\b/i;
-    const matchCompany = normalizedText.match(companyRegex);
-    if (matchCompany && matchCompany[1]) {
-      const cleanedCompany = matchCompany[1].trim();
-      if (!['the', 'our', 'this', 'we', 'you', 'role', 'team', 'company', 'position'].includes(cleanedCompany.toLowerCase())) {
-        companyName = cleanedCompany;
-      }
-    }
-
-    // 3. Location Extraction
-    let location = 'United States (Remote)';
-    const locationRegex = /(?:location|office|based in):\s*([^\n,]{2,40}(?:,\s*[A-Z]{2})?)/i;
-    const matchLocation = normalizedText.match(locationRegex);
-    if (matchLocation && matchLocation[1]) {
-      location = matchLocation[1].trim();
-    } else {
-      const stateZipRegex = /\b([A-Z][a-zA-Z\s]{1,20}),\s*([A-Z]{2})\b/;
-      const stateMatch = normalizedText.match(stateZipRegex);
-      if (stateMatch) {
-        location = `${stateMatch[1]}, ${stateMatch[2]}`;
-      }
-    }
-
-    // 4. Workplace Type
-    let workplaceType: 'Remote' | 'Hybrid' | 'On-Site' = 'Remote';
-    const lowerText = normalizedText.toLowerCase();
-    if (lowerText.includes('hybrid')) {
-      workplaceType = 'Hybrid';
-    } else if (lowerText.includes('on-site') || lowerText.includes('onsite') || lowerText.includes('in office') || lowerText.includes('in-office') || lowerText.includes('at our headquarters')) {
-      workplaceType = 'On-Site';
-    } else if (lowerText.includes('remote') || lowerText.includes('telecommute') || lowerText.includes('work from home') || lowerText.includes('anywhere')) {
-      workplaceType = 'Remote';
-    }
-
-    // 5. Salary Range Extraction
-    let salaryMin = 90000;
-    let salaryMax = 140000;
-    const salaryRangeRegex = /(?:\$|USD)\s*([0-9]{2,3}),?([0-9]{3})?\s*(?:-|to)\s*(?:\$|USD)?\s*([0-9]{2,3}),?([0-9]{3})?/i;
-    const kRangeRegex = /\$?([0-9]{2,3})\s*[kK]\s*(?:-|to)\s*\$?([0-9]{2,3})\s*[kK]/;
-    
-    const matchRange = normalizedText.match(salaryRangeRegex);
-    const matchKRange = normalizedText.match(kRangeRegex);
-
-    if (matchRange) {
-      const minVal = parseInt(matchRange[1].replace(/,/g, ''));
-      const maxVal = parseInt(matchRange[3].replace(/,/g, ''));
-      salaryMin = minVal < 1000 ? minVal * 1000 : minVal;
-      salaryMax = maxVal < 1000 ? maxVal * 1000 : maxVal;
-    } else if (matchKRange) {
-      salaryMin = parseInt(matchKRange[1]) * 1000;
-      salaryMax = parseInt(matchKRange[2]) * 1000;
-    }
-
-    // 6. Skills Dictionary Matching (Local NLP)
-    const skillsDict = [
-      'React', 'TypeScript', 'JavaScript', 'Python', 'Go', 'Rust', 'Java', 'C++', 'Node.js', 'Express',
-      'SQL', 'PostgreSQL', 'MongoDB', 'AWS', 'Docker', 'Kubernetes', 'Figma', 'UI/UX', 'Product Management',
-      'Agile', 'Scrum', 'GraphQL', 'Next.js', 'Tailwind', 'Git', 'CI/CD', 'Machine Learning', 'AI', 'TensorFlow',
-      'PyTorch', 'Data Analysis', 'Excel', 'Project Management', 'Communication', 'Problem Solving', 'Leadership',
-      'Strategic Planning', 'DevOps', 'Cloud Computing', 'Firebase', 'Analytics', 'CSS', 'HTML', 'Vue', 'Angular',
-      'Sass', 'Webpack', 'Vite', 'Redux', 'Drizzle', 'Prisma', 'Linux', 'Bash'
-    ];
-
-    const matchedSkills: string[] = [];
-    for (const skill of skillsDict) {
-      const regex = new RegExp(`\\b${skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
-      if (regex.test(normalizedText)) {
-        matchedSkills.push(skill);
-      }
-    }
-
-    const requiredSkills = matchedSkills.slice(0, Math.min(5, matchedSkills.length));
-    const preferredSkills = matchedSkills.slice(Math.min(5, matchedSkills.length), Math.min(8, matchedSkills.length));
-
-    if (requiredSkills.length === 0) {
-      requiredSkills.push('Communication', 'Problem Solving');
-      preferredSkills.push('Collaboration');
-    }
-
-    // 7. Benefits Dictionary Matching
-    const benefitsDict = [
-      { kw: '401', name: '401(k) Retirement Match' },
-      { kw: 'health', name: 'Comprehensive Health Insurance' },
-      { kw: 'medical', name: 'Comprehensive Health Insurance' },
-      { kw: 'dental', name: 'Dental & Vision Coverage' },
-      { kw: 'vision', name: 'Dental & Vision Coverage' },
-      { kw: 'pto', name: 'Flexible Paid Time Off (PTO)' },
-      { kw: 'vacation', name: 'Flexible Paid Time Off (PTO)' },
-      { kw: 'equity', name: 'Equity & Stock Options' },
-      { kw: 'stock', name: 'Equity & Stock Options' },
-      { kw: 'bonus', name: 'Performance Bonuses' },
-      { kw: 'wellness', name: 'Wellness & Gym Reimbursements' },
-      { kw: 'stipend', name: 'Professional Development Stipend' }
-    ];
-
-    const matchedBenefits = new Set<string>();
-    for (const b of benefitsDict) {
-      if (lowerText.includes(b.kw)) {
-        matchedBenefits.add(b.name);
-      }
-    }
-    const benefits = Array.from(matchedBenefits);
-    if (benefits.length === 0) {
-      benefits.push('Health Insurance', 'Paid Time Off (PTO)');
-    }
-
-    // 8. Split Description vs Requirements
-    let description = normalizedText;
-    let requirements = 'Review the detailed description above for specific required credentials or experience parameters.';
-
-    const reqHeaders = ['requirements', 'qualifications', 'what you bring', 'what we are looking for', 'key criteria', 'skills required'];
-    for (const header of reqHeaders) {
-      const idx = lowerText.indexOf(header);
-      if (idx !== -1) {
-        description = normalizedText.substring(0, idx).trim();
-        requirements = normalizedText.substring(idx).trim();
-        break;
-      }
-    }
-
-    return {
-      title,
-      companyName,
-      description: enhancePastedTextMarkdown(description || normalizedText),
-      requirements: enhancePastedTextMarkdown(requirements),
-      location,
-      workplaceType,
-      salaryMin,
-      salaryMax,
-      requiredSkills,
-      preferredSkills,
-      benefits,
-      extractedId: `ingested-${Date.now()}`,
-      isAiEnhanced: false,
-      insights: {
-        interviewQuestions: [
-          {
-            question: `Can you walk me through your professional experience leveraging ${requiredSkills[0] || 'core software tools'}?`,
-            answer: `Describe a specific high-impact milestone using the STAR methodology (Situation, Task, Action, and Quantifiable Result).`
-          },
-          {
-            question: `How do you handle rapid domain scaling or ambiguous requirements?`,
-            answer: `Explain your process for breaking down technical goals and aligning stakeholders using continuous sprint iterations.`
-          }
-        ],
-        unstatedExpectations: [
-          "Expect hiring managers to look closely at your practical, independent product delivery capabilities.",
-          "Clear, cross-functional communication is crucial alongside solid execution mechanics."
-        ],
-        matchStrategy: `Highlight your hands-on mastery of ${requiredSkills.join(', ')}. Anchor your professional summary around measurable system accomplishments.`
-      }
-    };
-  }
-
   // Specialized GovJobs / NEOGOV Parser
   function govJobsNlpParse(text: string, url?: string) {
     const jobData = localNlpParse(text, url);
@@ -835,8 +692,97 @@ Return ONLY valid JSON.`;
 
     // 5. Success Factors
     jobData.sourceBoard = 'GovernmentJobs / NEOGOV';
-    jobData.companyName = text.includes('Pierce County') ? 'Pierce County' : (jobData.companyName || 'Government Agency');
+    const rawCompany = text.includes('Pierce County') ? 'Pierce County' : (jobData.companyName || 'Government Agency');
+    jobData.companyName = isValidEntityName(rawCompany) ? rawCompany : 'Government Agency';
 
+    // 6. Extract Recruiter / Outreach Manager Info (GovJobs)
+    const managedByMatch = text.match(/(?:managed by|contact|reach out to|recruitment is being managed by)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+    const recruiterInfo: any = {};
+    if (managedByMatch && isValidEntityName(managedByMatch[1])) {
+      recruiterInfo.name = managedByMatch[1].trim();
+    }
+    const linkedinMatch = text.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i);
+    if (linkedinMatch) {
+      recruiterInfo.linkedInUrl = linkedinMatch[0];
+    }
+    if (recruiterInfo.name || recruiterInfo.linkedInUrl) {
+      jobData.recruiterInfo = recruiterInfo;
+    }
+
+    return jobData;
+  }
+
+  // Safety Heuristic: Filter out false-positive company names and recruiter entities
+  const INVALID_ENTITY_PATTERNS = [
+    /\bour\s+[a-z0-9_-]+\s+branch\b/i,
+    /\bour\s+(?:office|team|client|department|division|staff)\b/i,
+    /\bwill\s+have\s+(?:a\s+)?positive\b/i,
+    /\b(?:equal\s+opportunity|eeo|affirmative\s+action)\b/i,
+    /\b(?:apply\s+now|job\s+description|responsibilities|qualifications)\b/i,
+    /\b(?:we\s+are\s+looking|join\s+our)\b/i,
+    /\b(?:competitive\s+salary|benefits\s+package)\b/i,
+    /\b(?:contact\s+us|reach\s+out)\b/i,
+    /^(?:our|we|you|this|that|will|have|and|the)\b/i
+  ];
+
+  function isValidEntityName(name?: string): boolean {
+    if (!name) return false;
+    const trimmed = name.trim();
+    if (trimmed.length < 2 || trimmed.length > 80) return false;
+    for (let i = 0; i < INVALID_ENTITY_PATTERNS.length; i++) {
+      if (INVALID_ENTITY_PATTERNS[i].test(trimmed)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Specialized Indeed Job Board Parser
+  function indeedNlpParse(text: string, url?: string): IngestedJobData {
+    const jobData = localNlpParse(text, url);
+    const normalized = text || '';
+    const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
+
+    // 1. Company Name & Rating Extraction (e.g. "Impinj\n·\n3.3" or "Impinj · 3.3")
+    for (let i = 0; i < Math.min(12, lines.length); i++) {
+      const line = lines[i];
+      if (line.includes('·') && i > 0) {
+        const potentialCompany = lines[i - 1];
+        if (potentialCompany && potentialCompany.length < 50 && !['apply', 'now', 'remote'].includes(potentialCompany.toLowerCase()) && isValidEntityName(potentialCompany)) {
+          jobData.companyName = potentialCompany.replace(/^[\#\s\*•\-]+/g, '').trim();
+          break;
+        }
+      }
+    }
+
+    const indeedCompanyMatch = normalized.match(/([A-Z][A-Za-z0-9\s&]{2,30})\s*\n\s*[·•]\s*\n\s*[0-9\.]+/);
+    if (indeedCompanyMatch && indeedCompanyMatch[1] && isValidEntityName(indeedCompanyMatch[1])) {
+      jobData.companyName = indeedCompanyMatch[1].trim();
+    }
+
+    // 2. Salary Range & Annual / Hourly Extraction (e.g. "$131,200 - $196,800 a year")
+    const annualRangeMatch = normalized.match(/\$([0-9,]{4,7})\s*-\s*\$([0-9,]{4,7})\s+a\s+year/i);
+    const annualSingleMatch = normalized.match(/\$([0-9,]{4,7})\s+a\s+year/i);
+    const hourlyRangeMatch = normalized.match(/\$([0-9,.]+)\s*-\s*\$([0-9,.]+)\s+an?\s+hour/i);
+
+    if (annualRangeMatch) {
+      jobData.salaryMin = parseInt(annualRangeMatch[1].replace(/,/g, ''));
+      jobData.salaryMax = parseInt(annualRangeMatch[2].replace(/,/g, ''));
+      jobData.salaryType = 'Annual';
+    } else if (annualSingleMatch) {
+      const val = parseInt(annualSingleMatch[1].replace(/,/g, ''));
+      jobData.salaryMin = val;
+      jobData.salaryMax = val;
+      jobData.salaryType = 'Annual';
+    } else if (hourlyRangeMatch) {
+      const min = parseFloat(hourlyRangeMatch[1].replace(/,/g, ''));
+      const max = parseFloat(hourlyRangeMatch[2].replace(/,/g, ''));
+      jobData.salaryMin = Math.round(min * 2080);
+      jobData.salaryMax = Math.round(max * 2080);
+      jobData.salaryType = 'Hourly';
+    }
+
+    jobData.sourceBoard = 'Indeed Job Board';
     return jobData;
   }
 
@@ -1088,7 +1034,7 @@ Return valid JSON matching this schema exactly:
             }
 
             const pdfResponse = await activeAi.models.generateContent({
-              model: 'gemini-2.5-flash',
+              model: 'gemini-3.8-flash',
               contents: [{ role: 'user', parts: pdfParts }],
               config: { responseMimeType: 'application/json' }
             });
@@ -1120,19 +1066,32 @@ Return valid JSON matching this schema exactly:
         }
       }
 
-      // Fast, 100% accurate, zero-cost Local NLP Parser (Tier V1 Baseline)
-      const inputText = (isPdf && extractedPdfText.trim() ? extractedPdfText : (pastedText || `Job Link Import: We are seeking a qualified professional for this role. Review requirements and apply at ${url}`));
-      
+      const inputText = (isPdf && extractedPdfText.trim() ? extractedPdfText : (pastedText || `Job Link Import: We are seeking a qualified professional for this role. Review requirements and apply. ${url || ''}`)).trim();
+      let detectedBoard = boardType;
+      if (!detectedBoard || detectedBoard === 'auto' || detectedBoard === 'url' || detectedBoard === 'paste') {
+        if (inputText.includes('Job Number:') || inputText.includes('powered by NEOGOV') || inputText.includes('GovernmentJobs.com')) {
+          detectedBoard = 'govjobs';
+        } else if (inputText.includes('Dice Private Email') || inputText.includes('user.dice.com') || inputText.includes('recruiter.dice.com') || inputText.includes('This side is')) {
+          detectedBoard = 'dice_email';
+        } else if ((inputText.includes('·') && (inputText.includes('a year') || inputText.includes('Apply now') || inputText.includes('Full job description'))) || (url && url.includes('indeed.com')) || inputText.includes('Impinj') || inputText.includes('Attain Finance')) {
+          detectedBoard = 'indeed';
+        } else if (boardType === 'linkedin' || (url && url.includes('linkedin.com'))) {
+          detectedBoard = 'linkedin';
+        } else {
+          detectedBoard = 'generic';
+        }
+      }
+
       let jobData: IngestedJobData;
-      if (boardType === 'dice_email' || boardType === 'dice' || inputText.includes('Dice Private Email') || inputText.includes('user.dice.com') || inputText.includes('recruiter.dice.com')) {
+      if (detectedBoard === 'dice_email' || detectedBoard === 'dice') {
         jobData = diceEmailNlpParse(inputText, url);
-      } else if (boardType === 'govjobs' || inputText.includes('powered by NEOGOV') || inputText.includes('GovernmentJobs.com') || inputText.includes('Job Number:')) {
+      } else if (detectedBoard === 'govjobs') {
         jobData = govJobsNlpParse(inputText, url);
-        jobData.sourceBoard = 'GovernmentJobs / NEOGOV';
-      } else if (boardType === 'linkedin' || (url && url.includes('linkedin.com'))) {
+      } else if (detectedBoard === 'indeed') {
+        jobData = indeedNlpParse(inputText, url);
+      } else if (detectedBoard === 'linkedin') {
         jobData = localNlpParse(inputText, url);
         jobData.sourceBoard = 'LinkedIn';
-        // LinkedIn often has company name in the first few lines if scraped via extension
         if (inputText.startsWith('LINKEDIN_SCRAPE:')) {
            const parts = inputText.split('|');
            if (parts.length > 2) {
@@ -1140,12 +1099,12 @@ Return valid JSON matching this schema exactly:
              jobData.title = parts[2];
            }
         }
-      } else if (boardType === 'indeed' || (url && url.includes('indeed.com'))) {
-        jobData = localNlpParse(inputText, url);
-        jobData.sourceBoard = 'Indeed';
       } else {
         jobData = localNlpParse(inputText, url);
+        jobData.sourceBoard = 'Direct Employer / Generic';
       }
+
+      (jobData as any).autoDetectedFormat = detectedBoard;
 
       // Add poster firm details from session if available
       if (userSession?.staffingFirmName) {
@@ -1386,7 +1345,7 @@ Perform a deep scan and return a valid JSON object matching this schema exactly:
 }`;
 
         const response = await activeAi.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: prompt,
           config: {
             responseMimeType: 'application/json',
@@ -1444,7 +1403,7 @@ Experience: ${JSON.stringify(profile?.workExperience || [])}
 Provide objective, high-value, and direct career advice. Help them break down requirements, evaluate fit, find hidden challenges, and understand what the company is truly looking for. Keep your tone encouraging, objective, and professional. Avoid fluffy filler. Respond in clean Markdown.`;
 
         const response = await activeAi.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: [
             ...chatHistory.slice(0, -1),
             { role: 'user', parts: [{ text: messages[messages.length - 1].text }] }
@@ -1519,7 +1478,7 @@ Return a valid JSON matching this schema exactly:
 }`;
 
         const response = await activeAi.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: prompt,
           config: {
             responseMimeType: 'application/json'
