@@ -19,6 +19,7 @@ import { runTextWhitespaceNormalizerTests } from './unit/textWhitespaceNormalize
 import { runCompanyLogoResolverTests } from './unit/companyLogoResolver.test';
 import { runDashboardSubNavTests } from './unit/dashboardSubNav.test';
 import { runExtensionArchitectureTests } from './unit/extensionArchitecture.test';
+import { runAdminCandidateInspectorTests } from './unit/adminCandidateInspector.test';
 
 console.log("\n=======================================================");
 console.log("Ascend ATS Comprehensive Safety-Critical Test Execution");
@@ -46,6 +47,7 @@ try {
   runCompanyLogoResolverTests();
   runDashboardSubNavTests();
   runExtensionArchitectureTests();
+  runAdminCandidateInspectorTests();
   console.log("\n=======================================================");
   console.log("🟢 100% OF SUITES & ASSERTIONS SATISFIED ZERO FAILURES");
   console.log("=======================================================\n");

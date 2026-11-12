@@ -52,7 +52,7 @@
 │       └── content/       # Content script sub-components (site-detector, scrapers, ingest-transport, overlay-modal, session-observer)
 ├── /src/                  # React Application Source Code
 │   ├── components/        # Reusable UI components
-│   │   ├── admin/         # Decomposed Admin Terminal subcomponents (AdminHeaderStats, AdminJobModerationTab, AdminJobValidationModal, AdminPostDetailsModal, AdminDataSeedingTab, AdminInvitationsTab, AdminPartnerRequestsTab, AdminRecruiterLeadsTab, AdminMassImportTab, AdminSecurityTab, AdminConfirmationModal, adminMockData)
+│   │   ├── admin/         # Decomposed Admin Terminal subcomponents (AdminHeaderStats, AdminCandidateInspectorTab, AdminJobModerationTab, AdminJobValidationModal, AdminPostDetailsModal, AdminDataSeedingTab, AdminInvitationsTab, AdminPartnerRequestsTab, AdminRecruiterLeadsTab, AdminMassImportTab, AdminSecurityTab, AdminConfirmationModal, adminMockData)
 │   │   ├── profile/       # Profile management editors (TargetIndicatorsEditor, IndustryEditor, LocationEditor, ExperienceEditor, PersonalInfoEditor, SkillsEditor, PrivacyControls, DeiAccommodationsEditor, SectionOrderEditor)
 │   │   ├── tracker/       # Job tracker, ingestion form, and AI resume tailoring workspace
 │   │   ├── DashboardSubNav.tsx # Responsive adaptive mobile sub-navigation bar with micro-icons and concise typography

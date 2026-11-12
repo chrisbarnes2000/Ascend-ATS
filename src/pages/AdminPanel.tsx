@@ -13,6 +13,7 @@ import { AdminRecruiterLeadsTab } from '../components/admin/AdminRecruiterLeadsT
 import { AdminMassImportTab } from '../components/admin/AdminMassImportTab';
 import { AdminSecurityTab } from '../components/admin/AdminSecurityTab';
 import { AdminJobModerationTab } from '../components/admin/AdminJobModerationTab';
+import { AdminCandidateInspectorTab } from '../components/admin/AdminCandidateInspectorTab';
 import { AdminConfirmationModal } from '../components/admin/AdminConfirmationModal';
 import { ParsedOutreachContact, MAX_IMPORT_ROWS } from '../utils/massOutreachParser';
 import { sanitizeFirestorePayload } from '../utils/firestoreSanitizer';
@@ -23,7 +24,7 @@ export default function AdminPanel() {
   const { user } = useAuth();
   const isAdmin = user?.email === 'Chris.Barnes.2000@me.com' || user?.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1';
 
-  const [adminMode, setAdminMode] = useState<'simulation' | 'invitations' | 'requests' | 'leads' | 'moderation' | 'security' | 'mass-import'>('simulation');
+  const [adminMode, setAdminMode] = useState<'simulation' | 'invitations' | 'requests' | 'leads' | 'moderation' | 'security' | 'mass-import' | 'inspector'>('simulation');
   const [isProcessing, setIsProcessing] = useState(false);
   const [status, setStatus] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [stats, setStats] = useState({ jobsCount: 0, appsCount: 0, usersCount: 0, companiesCount: 0 });
@@ -651,6 +652,18 @@ export default function AdminPanel() {
           </button>
 
           <button
+            onClick={() => setAdminMode('inspector')}
+            className={`px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+              adminMode === 'inspector'
+                ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>Candidate Inspector & Match Debugger</span>
+          </button>
+
+          <button
             onClick={() => setAdminMode('security')}
             className={`px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
               adminMode === 'security'
@@ -754,6 +767,13 @@ export default function AdminPanel() {
               setActiveJobReports(prev => prev.filter(r => r.id !== repId));
               showStatus('Dismissed report.', 'info');
             }}
+          />
+        )}
+
+        {adminMode === 'inspector' && (
+          <AdminCandidateInspectorTab
+            jobs={allJobs}
+            onRefreshJobs={fetchJobs}
           />
         )}
 

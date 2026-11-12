@@ -4,6 +4,28 @@ This internal engineering log records granular development actions, architecture
 
 ---
 
+## [0.5.31-dev.9] - 2026-11-11
+### Admin Candidate Session Inspector & Extension Match Engine Debugging Tool
+- **Context & Requirement**:
+  - Admin requested a way to inspect the exact candidate payload used by the browser extension (`ascend_auth_session`) and troubleshoot bad match scores when candidates expect a high fit.
+- **Implementation & File Changes**:
+  - **Admin Candidate Inspector Component (`src/components/admin/AdminCandidateInspectorTab.tsx`)**:
+    - Created dedicated Admin sub-component enabling admins to search and inspect any candidate user's Firestore profile (`users/{uid}/profiles/main`) and extension mirrored payload.
+    - Added **Raw JSON Payload Inspector** toggle to review raw extension session data (`targetRole`, `skills`, `targetSalary`, `preferredWorkplaceType`, `workExperience`, `targetBenefits`, `culturalPreferences`).
+    - Added **Interactive Ground-Truth Match Engine Simulator**:
+      - Simulates match score evaluation against active database job requisitions or custom scraped job description text using `getMatchBreakdown`.
+      - Renders 4-pillar diagnostic breakdown: Skills Overlap (40%), Experience (25%), Salary Budget Gap (20%), and Workplace Setting Compatibility (15%).
+      - Generates actionable **Admin Resolution Guidance** for candidate support (e.g. identifying missing skill keywords or salary budget mismatches).
+  - **Admin Workspace Integration (`src/pages/AdminPanel.tsx`)**:
+    - Registered `inspector` tab mode ("Candidate Inspector & Match Debugger") in the Admin Panel header navigation bar.
+  - **Automated Test Hardening (`tests/unit/adminCandidateInspector.test.ts`)**:
+    - Created unit test suite verifying high-match calculation and low-match diff debugging for admin troubleshooting.
+- **Pre-Flight Validation & Quality Gates**:
+  - `npm test`: All 22 test suites passed with 100% green assertions.
+  - `compile_applet` & `npm run lint` (`tsc --noEmit`): Compiled and linted cleanly with zero errors.
+
+---
+
 ## [0.5.31-dev.8] - 2026-11-11
 ### Multi-Channel Session Mirroring, Isolated World Storage Bridge & Strict Extension Versioning (v1.2.6)
 - **Context & Requirement**:
