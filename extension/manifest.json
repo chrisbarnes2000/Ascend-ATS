@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Ascend ATS Ingestion Bridge",
-  "version": "1.2.0",
+  "version": "1.2.6",
   "description": "Ingest LinkedIn and Indeed job postings directly into your Ascend ATS pipeline.",
   "permissions": [
     "activeTab",
     "storage",
-    "contextMenus"
+    "contextMenus",
+    "tabs",
+    "scripting"
   ],
   "host_permissions": [
     "https://*.linkedin.com/*",
@@ -18,9 +20,10 @@
     "https://*.lever.co/*",
     "https://*.glassdoor.com/*",
     "https://ascend-ats.ai.studio/*",
-    "http://localhost:3000/*",
-    "https://ais-dev-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*",
-    "https://ais-pre-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*"
+    "https://*.ai.studio/*",
+    "https://*.run.app/*",
+    "http://localhost:*/*",
+    "https://localhost:*/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -43,9 +46,10 @@
         "https://*.lever.co/*",
         "https://*.glassdoor.com/*",
         "https://ascend-ats.ai.studio/*",
-        "http://localhost:3000/*",
-        "https://ais-dev-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*",
-        "https://ais-pre-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*"
+        "https://*.ai.studio/*",
+        "https://*.run.app/*",
+        "http://localhost:*/*",
+        "https://localhost:*/*"
       ],
       "exclude_globs": ["*login*", "*apply*", "*signup*", "*register*"],
       "js": [

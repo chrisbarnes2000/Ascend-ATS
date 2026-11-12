@@ -15,6 +15,7 @@ import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from 'firebase/fires
 import { auth, db } from '../firebase/config';
 import { AppUser, AccountType } from '../types';
 import { normalizeEmail, checkRoleSwitchRateLimit, generateArchiveProfilePath } from '../utils/identityGovernance';
+import { syncSessionToExtension } from '../utils/sessionMirror';
 
 interface AuthContextType {
   user: User | null;
@@ -123,12 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               profileCompleted: appUserData.profileCompleted || false,
               profile: profileSummary
             };
-            try {
-              localStorage.setItem('ascend_auth_session', JSON.stringify(sessionPayload));
-              window.dispatchEvent(new CustomEvent('ascend-auth-change', { detail: sessionPayload }));
-            } catch (e) {
-              console.warn("Could not sync session to localStorage:", e);
-            }
+            syncSessionToExtension(sessionPayload);
           } else {
             console.warn("User doc not found for:", firebaseUser.uid);
             setAppUser(null);
@@ -144,10 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("No Firebase user detected");
         setAppUser(null);
         setIsProfileConfigured(true);
-        try {
-          localStorage.removeItem('ascend_auth_session');
-          window.dispatchEvent(new CustomEvent('ascend-auth-change', { detail: null }));
-        } catch (e) {}
+        syncSessionToExtension(null);
       }
       setLoading(false);
     });
@@ -523,10 +516,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    try {
-      localStorage.removeItem('ascend_auth_session');
-      window.dispatchEvent(new CustomEvent('ascend-auth-change', { detail: null }));
-    } catch (e) {}
+    syncSessionToExtension(null);
     return signOut(auth);
   };
 

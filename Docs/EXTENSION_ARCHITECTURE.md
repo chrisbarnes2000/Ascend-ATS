@@ -1,6 +1,6 @@
 # Ascend ATS Browser Extension Architecture & Sub-Component Specification
 
-**Document Version:** `v1.2.0`  
+**Document Version:** `v1.2.6`  
 **Classification:** Core System Pillar (Ingestion Bridge)  
 **Safety Ceilings:** NASA JPL Power of 10 Rules Compliant (Single Responsibility, <60 Lines per Method, Fixed Bounds)
 
@@ -8,17 +8,16 @@
 
 ## 1. Architectural Overview & Design Constitution
 
-The **Ascend ATS Ingestion Bridge** is a multi-browser extension (Manifest V3) engineered to ingest requisitions and applications directly from external job boards (LinkedIn, Indeed, GovernmentJobs / NEOGOV) into the Ascend ATS platform with zero manual copy-pasting.
+The **Ascend ATS Ingestion Bridge** is a multi-browser extension (Manifest V3) engineered to ingest requisitions and applications directly from external job boards (LinkedIn, Indeed, GovernmentJobs, Workday, Greenhouse, Lever, Glassdoor) into the Ascend ATS platform with zero manual copy-pasting.
 
 ### Core Architecture Principles
 1. **Single-Responsibility Principle (SRP)**: Every JavaScript function performs exactly one deterministic task, with inputs validated on entry and outputs guaranteed.
-2. **Native ES Modules & Zero-Build Loading**: The popup workspace operates via native ECMAScript modules (`<script type="module" src="popup.js">`), enabling instant side-loading directly from `/extension` without requiring a build step or watcher.
-3. **Unified Design Token System**: Styles are partitioned into a canonical design tokens sheet (`tokens.css`), a scoped popup workspace stylesheet (`popup.css`), and an isolated in-page injection stylesheet (`content.css`).
-4. **NASA JPL Power of 10 Safety Ceilings**:
+2. **Strict Extension Versioning Doctrine**: Every patch, refactor, or feature addition to the browser extension **must** concurrently increment the version number in `extension/manifest.json`, be validated against `tests/unit/extensionArchitecture.test.ts`, and be recorded in `Docs/CHANGELOG_DEV.md` and public release notes. Never leave the manifest version static across engineering updates.
+3. **Native ES Modules & Zero-Build Loading**: The popup workspace operates via native ECMAScript modules (`<script type="module" src="popup.js">`), enabling instant side-loading directly from `/extension`.
+4. **Unified Design Token System**: Styles are partitioned into a canonical design tokens sheet (`tokens.css`), a scoped popup workspace stylesheet (`popup.css`), and an isolated in-page injection stylesheet (`content.css`).
+5. **NASA JPL Power of 10 Safety Ceilings**:
    - Compact function lengths strictly bounded under 60 executable lines.
-   - Fixed loop iteration ceilings (e.g., maximum 30 summary block traverses).
-   - Deterministic resource cleanup (mutation observers and heartbeat intervals teardown).
-   - Complete parameter checking with zero untyped `any` escape hatches.
+   - Fixed loop iteration ceilings and deterministic resource cleanup.
 
 ---
 
@@ -26,7 +25,7 @@ The **Ascend ATS Ingestion Bridge** is a multi-browser extension (Manifest V3) e
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                   Ascend ATS Ingestion Bridge (v1.2.0)                 │
+│                   Ascend ATS Ingestion Bridge (v1.2.6)                 │
 └────────────────────────────────────┬───────────────────────────────────┘
                                      │
            ┌─────────────────────────┴─────────────────────────┐
@@ -251,15 +250,21 @@ The extension design system is defined in `extension/css/tokens.css` and shared 
 
 The extension manifest (`extension/manifest.json`) enforces strict least-privilege permissions:
 
-- **Permissions**: `activeTab`, `storage`, `contextMenus`.
+- **Permissions**: `activeTab`, `storage`, `contextMenus`, `tabs`, `scripting`.
 - **Host Permissions**:
   - `https://*.linkedin.com/*`
   - `https://*.indeed.com/*`
   - `https://*.governmentjobs.com/*`
+  - `https://*.myworkdayjobs.com/*`
+  - `https://*.workday.com/*`
+  - `https://*.greenhouse.io/*`
+  - `https://*.lever.co/*`
+  - `https://*.glassdoor.com/*`
   - `https://ascend-ats.ai.studio/*`
-  - `http://localhost:3000/*`
-  - `https://ais-dev-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*`
-  - `https://ais-pre-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/*`
+  - `https://*.ai.studio/*`
+  - `https://*.run.app/*`
+  - `http://localhost:*/*`
+  - `https://localhost:*/*`
 - **Content Security Policy**:
   - `script-src 'self'; object-src 'self'; connect-src 'self' https://ascend-ats.ai.studio https://ais-dev-*.run.app https://identitytoolkit.googleapis.com https://firestore.googleapis.com;`
 
@@ -270,5 +275,5 @@ The extension manifest (`extension/manifest.json`) enforces strict least-privile
 1. Open Chromium browser and navigate to `chrome://extensions`.
 2. Enable **Developer mode** toggle in the top-right corner.
 3. Click **Load unpacked** and select the `/extension` directory in the project root.
-4. Verify the **Ascend ATS Ingestion Bridge v1.2.0** card appears with the Ascend lettermark icon.
+4. Verify the **Ascend ATS Ingestion Bridge v1.2.6** card appears with the Ascend lettermark icon.
 5. Open a LinkedIn, Indeed, or GovernmentJobs posting to test the injected **"Ascend to ATS"** button and review overlay.

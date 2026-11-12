@@ -15,7 +15,8 @@ import {
   hideAccessDenied, 
   setRole, 
   openAppHash,
-  bindNavigationLinks
+  bindNavigationLinks,
+  initDynamicVersionTag
 } from './modules/popup/popup-ui.js';
 
 let currentSession = null;
@@ -23,6 +24,9 @@ let currentRole = 'seeker';
 let currentPromptVersion = 'v2';
 
 document.addEventListener('DOMContentLoaded', () => {
+  // 0. Initialize Dynamic Version Tag
+  initDynamicVersionTag();
+
   // 1. Initialize Prompt Matrix
   initPromptMatrix((ver) => { currentPromptVersion = ver; });
 

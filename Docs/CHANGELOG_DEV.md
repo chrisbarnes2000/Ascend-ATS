@@ -4,6 +4,53 @@ This internal engineering log records granular development actions, architecture
 
 ---
 
+## [0.5.31-dev.8] - 2026-11-11
+### Multi-Channel Session Mirroring, Isolated World Storage Bridge & Strict Extension Versioning (v1.2.6)
+- **Context & Requirement**:
+  - Extension was failing to reliably detect logged-in sessions across browser tabs because content scripts execute in Chrome's Isolated World (where `window.localStorage` is isolated from the main page context), and `auth-manager.js` lacked `"tabs"` and `"scripting"` permissions to execute main-world scripts across all AI Studio Cloud Run preview domains.
+- **Implementation & File Changes**:
+  - **Multi-Channel Session Mirror Helper (`src/utils/sessionMirror.ts`)**:
+    - Synchronizes session state simultaneously across `localStorage`, `document.documentElement.dataset.ascendSession` (shared DOM node attribute accessible across Isolated World boundaries), `CustomEvent('ascend-auth-change')`, and `window.postMessage`.
+  - **SPA Integration (`src/hooks/useAuth.tsx` & `src/pages/ProfileEditor.tsx`)**:
+    - Replaced fragmented manual `localStorage` and `CustomEvent` calls with `syncSessionToExtension(sessionPayload)` on auth state change, profile save, and logout.
+  - **Content Script Cross-World Observer (`extension/modules/content/session-observer.js`)**:
+    - Updated `syncSession()` to read `dataset.ascendSession` first, falling back to `localStorage`.
+    - Added `window.addEventListener('message', ...)` listener for `ASCEND_AUTH_CHANGE` postMessages.
+  - **Popup Auth Manager & Scripting Permissions (`extension/modules/popup/auth-manager.js` & `extension/manifest.json`)**:
+    - Added `"tabs"` and `"scripting"` to `"permissions"` in `manifest.json`.
+    - Updated `auth-manager.js` tab query filter to match `ascend-ats.ai.studio`, `ais-`, `.run.app`, and `localhost`.
+    - Executed tab script in `world: 'MAIN'` context so Chrome can read `dataset.ascendSession` and `localStorage` directly from active web app tabs.
+    - Added wildcard match patterns (`https://*.ai.studio/*`, `https://*.run.app/*`, `http://localhost:*/*`, `https://localhost:*/*`) to `host_permissions` and `content_scripts.matches`.
+  - **Strict Extension Versioning Doctrine (`extension/manifest.json` & `Docs/EXTENSION_ARCHITECTURE.md`)**:
+    - Bumped extension version to `1.2.6`.
+    - Updated `tests/unit/extensionArchitecture.test.ts` to assert version `1.2.6` and verify `tabs` + `scripting` permissions.
+    - Updated `Docs/EXTENSION_ARCHITECTURE.md`.
+- **Pre-Flight Validation & Quality Gates**:
+  - `npm test`: All 21 test suites passed with 100% green assertions.
+  - `compile_applet` & `npm run lint` (`tsc --noEmit`): Compiled and linted successfully with zero errors.
+
+---
+
+## [0.5.31-dev.7] - 2026-11-11
+### Strict Extension Versioning Doctrine (v1.2.5), Login Resilience & Domain Link Fixes
+- **Context & Requirement**:
+  - User reported login issues and occasional references pointing to dev endpoints instead of the published domain (`https://ascend-ats.ai.studio`).
+  - User requested updating the engineering doctrine to strictly mandate extension versioning on every patch/release (since the extension remained on `1.2.0` across recent updates).
+- **Implementation & Architecture**:
+  - **Extension Version Bump & Strict Versioning Doctrine (`extension/manifest.json`, `Docs/EXTENSION_ARCHITECTURE.md`)**:
+    - Bumped extension version in `manifest.json` from `1.2.0` to `1.2.5`.
+    - Added the **Strict Extension Versioning Doctrine** to `EXTENSION_ARCHITECTURE.md`, mandating that every patch or feature addition must concurrently increment the manifest version, be validated by unit tests, and be logged in changelogs.
+    - Updated `tests/unit/extensionArchitecture.test.ts` to assert version `1.2.5`.
+  - **Login Session Synchronization Resilience (`extension/modules/popup/auth-manager.js`)**:
+    - Upgraded `trySyncSessionFromTabs()` to check `chrome.storage.local` cache first before inspecting browser tabs, eliminating unnecessary login loops and ensuring seamless authentication state recovery.
+  - **Published Domain Link Standardization**:
+    - Ensured all extension links and auth redirections consistently point to `https://ascend-ats.ai.studio`.
+- **Pre-Flight Validation & Quality Gates**:
+  - `npm test`: All 21 test suites passed with 100% green assertions.
+  - `compile_applet` & `npm run lint` (`tsc --noEmit`): Compiled and linted successfully with zero errors.
+
+---
+
 ## [0.5.31-dev.6] - 2026-11-11
 ### Enterprise ATS Whitelist Expansion, Unapproved Site Confirmation Banners & Mandatory Pre-Ingestion Fit Check
 - **Context & Requirement**:

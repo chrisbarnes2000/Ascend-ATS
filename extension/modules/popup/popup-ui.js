@@ -182,3 +182,22 @@ export function bindNavigationLinks() {
     });
   });
 }
+
+/**
+ * Dynamically synchronizes the visual version tag in the UI with chrome.runtime.getManifest().
+ */
+export function initDynamicVersionTag() {
+  const versionSpan = document.getElementById('ext-version-tag');
+  if (versionSpan) {
+    try {
+      const manifestVersion = (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.getManifest === 'function')
+        ? chrome.runtime.getManifest()?.version
+        : '1.2.6';
+      if (manifestVersion) {
+        versionSpan.innerText = `Ascend ATS Bridge v${manifestVersion}`;
+      }
+    } catch (e) {
+      console.warn("[PopupUI] Failed to resolve manifest version dynamically:", e);
+    }
+  }
+}

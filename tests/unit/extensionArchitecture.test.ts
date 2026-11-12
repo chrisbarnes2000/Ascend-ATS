@@ -89,7 +89,9 @@ export function runExtensionArchitectureTests() {
   assert.strictEqual(fs.existsSync(manifestPath), true, 'manifest.json must exist');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   assert.strictEqual(manifest.manifest_version, 3, 'Must be Manifest V3');
-  assert.strictEqual(manifest.version, '1.2.0', 'Extension version must be 1.2.0');
+  assert.strictEqual(manifest.version, '1.2.6', 'Extension version must be 1.2.6');
+  assert.strictEqual(manifest.permissions.includes('tabs'), true, 'Manifest permissions must include tabs');
+  assert.strictEqual(manifest.permissions.includes('scripting'), true, 'Manifest permissions must include scripting');
   assert.strictEqual(
     manifest.host_permissions.includes('https://ascend-ats.ai.studio/*'),
     true,
@@ -112,7 +114,13 @@ export function runExtensionArchitectureTests() {
       assert.strictEqual(fs.existsSync(cssPath), true, `Declared stylesheet ${cssFile} must exist`);
     });
   });
-  console.log('✓ Test 7: Manifest V3 file integrity, multi-resolution PNG icons, and content script paths validated');
+
+  // Verify popup.html contains dynamic version tag span container
+  const popupHtmlPath = path.resolve(process.cwd(), 'extension/popup.html');
+  const popupHtmlContent = fs.readFileSync(popupHtmlPath, 'utf8');
+  assert.strictEqual(popupHtmlContent.includes('id="ext-version-tag"'), true, 'popup.html must contain id="ext-version-tag"');
+  assert.strictEqual(popupHtmlContent.includes(`v${manifest.version}`), true, 'popup.html static fallback must match manifest version');
+  console.log('✓ Test 7: Manifest V3 file integrity, multi-resolution PNG icons, content script paths, and visual version tag validated');
 
   // Test 8: NASA JPL Rule 4 - Compact function length (< 60 lines) in orchestrators
   const popupJsPath = path.resolve(process.cwd(), 'extension/popup.js');

@@ -10,13 +10,14 @@ window.AscendBridge.SessionObserver = (function() {
   let syncIntervalId = null;
 
   /**
-   * Reads the active auth session from window.localStorage and synchronizes it to extension storage.
+   * Reads the active auth session from DOM dataset or window.localStorage and synchronizes it to extension storage.
    */
   function syncSession() {
     try {
-      const raw = window.localStorage.getItem('ascend_auth_session');
+      const datasetVal = document.documentElement ? document.documentElement.dataset.ascendSession : null;
+      const raw = datasetVal || (typeof window.localStorage !== 'undefined' ? window.localStorage.getItem('ascend_auth_session') : null);
       if (raw) {
-        const session = JSON.parse(raw);
+        const session = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (chrome.storage && chrome.storage.local) {
           chrome.storage.local.set({ ascendSession: session });
         }
@@ -43,6 +44,19 @@ window.AscendBridge.SessionObserver = (function() {
           chrome.storage.local.set({ ascendSession: e.detail });
         } else {
           chrome.storage.local.remove(['ascendSession']);
+        }
+      }
+    });
+
+    // Listen for window postMessage for cross-world boundary communication
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'ASCEND_AUTH_CHANGE') {
+        if (chrome.storage && chrome.storage.local) {
+          if (event.data.session) {
+            chrome.storage.local.set({ ascendSession: event.data.session });
+          } else {
+            chrome.storage.local.remove(['ascendSession']);
+          }
         }
       }
     });

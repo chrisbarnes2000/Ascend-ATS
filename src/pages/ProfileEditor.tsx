@@ -14,6 +14,7 @@ import { IndustryEditor } from '../components/profile/IndustryEditor';
 import { TargetIndicatorsEditor } from '../components/profile/TargetIndicatorsEditor';
 import { JsonProfileUpload } from '../components/JsonProfileUpload';
 import { sanitizeFirestorePayload } from '../utils/firestoreSanitizer';
+import { syncSessionToExtension } from '../utils/sessionMirror';
 import { Loader2, Save, ArrowLeft, Shield, FileCode, Heart, Move, X, Zap, CheckCircle2, Target } from 'lucide-react';
 
 const defaultPrivacy: PrivacySettings = {
@@ -149,8 +150,7 @@ export const ProfileEditor = () => {
             culturalPreferences: profile.culturalPreferences || [],
             targetBenefits: profile.targetBenefits || (profile as any).preferredBenefits || []
           };
-          localStorage.setItem('ascend_auth_session', JSON.stringify(s));
-          window.dispatchEvent(new CustomEvent('ascend-auth-change', { detail: s }));
+          syncSessionToExtension(s);
         }
       } catch (e) {
         console.warn("Could not sync profile update to local session:", e);
