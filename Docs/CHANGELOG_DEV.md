@@ -4,6 +4,189 @@ This internal engineering log records granular development actions, architecture
 
 ---
 
+## [0.5.31-dev.6] - 2026-11-11
+### Enterprise ATS Whitelist Expansion, Unapproved Site Confirmation Banners & Mandatory Pre-Ingestion Fit Check
+- **Context & Requirement**:
+  - User requested whitelisting additional enterprise ATS platforms (Workday, Greenhouse, Lever, Glassdoor) while ensuring that unrecognized/unapproved websites (such as Facebook, X, YouTube) prompt the user/admin to validate the domain.
+  - Additionally, users must run a mandatory pre-ingestion fit comparison before submitting a job into the tracking system or applying.
+- **Implementation & Architecture**:
+  - **Site Detector & Whitelist Expansion (`extension/modules/content/site-detector.js`)**:
+    - Whitelisted Workday (`*.myworkdayjobs.com`, `*.workday.com`), Greenhouse (`*.greenhouse.io`), Lever (`*.lever.co`), and Glassdoor (`*.glassdoor.com`).
+    - Implemented `isWhitelistedDomain()` check and `showUnapprovedSitePrompt()` to render an interactive banner on unrecognized sites asking *"Is this page a job board or career portal? [Yes, Request Validation] [Dismiss]"*.
+  - **Backend Domain Validation Endpoint (`server.ts`)**:
+    - Added `POST /api/admin/job-board-requests` to record unapproved domain validation requests in Firestore (`job_board_requests` collection).
+  - **Platform Scrapers (`extension/modules/content/scrapers.js`)**:
+    - Added robust DOM selectors for Workday, Greenhouse, Lever, and Glassdoor job posting extraction.
+  - **Mandatory Pre-Ingestion Fit Comparison Gate (`extension/modules/content/overlay-modal.js`)**:
+    - Upgraded `showReviewOverlay()` to automatically evaluate match score against the user's cached profile upon opening.
+    - If match score is below 60%, displays **Low Match Warning (< 60%)** with **"Close Tab"** and **"Adjust Profile"** actions, disabling confirmation unless the user explicitly checks an acknowledgment override checkbox.
+    - Attaches `matchScore` and `matchBreakdown` to the ingestion payload.
+  - **Manifest V3 Host Permissions (`extension/manifest.json`)**:
+    - Added wildcard host permissions for Workday, Greenhouse, Lever, and Glassdoor domains.
+- **Pre-Flight Validation & Quality Gates**:
+  - `npm test`: All 21 test suites passed successfully with 100% green assertions.
+  - `compile_applet` & `npm run lint` (`tsc --noEmit`): Compiled and linted successfully with zero errors.
+
+---
+
+## [0.5.31-dev.5] - 2026-11-11
+### Multi-Resolution PNG Icon Assets & Manifest Fix for Extension Toolbar & Management Page
+- **Context & Requirement**:
+  - The extension was previously referencing a single `.jpg` icon (`icon128.jpg`), which caused Chrome to fail rendering icons in `chrome://extensions` (Manage Extensions) and fallback to the generic puzzle piece icon on pinned toolbars.
+- **Implementation & File Changes**:
+  - **Asset Generation & Resizing (`scripts/generateExtensionIcons.ts` & `sharp`)**:
+    - Generated high-fidelity multi-resolution PNG icons (`icon16.png`, `icon32.png`, `icon48.png`, `icon128.png`) in `extension/` using `sharp` from the Ascend ATS rocket branding asset.
+  - **Manifest V3 Configuration (`extension/manifest.json`)**:
+    - Updated `icons` and `action.default_icon` to reference all four standard `.png` icon resolutions.
+  - **Test Suite Hardening (`tests/unit/extensionArchitecture.test.ts`)**:
+    - Added assertions in Test 7 verifying manifest icon declarations and verifying that `icon16.png`, `icon48.png`, and `icon128.png` exist on disk.
+- **Pre-Flight Validation & Quality Gates**:
+  - `npm test`: All 21 test suites passed successfully with 100% green assertions.
+  - `compile_applet` & `npm run lint`: Compiled and typechecked successfully with zero errors.
+
+---
+
+## [0.5.31-dev.4] - 2026-11-11
+### Ground-Truth Match Engine Integration, Elaborate Diff Matrix & Low-Match (<60%) Guidance
+- **Context & Requirement**:
+  - Previously, the extension's `assessPageFit()` used a hardcoded 11-skill array with a clamped artificial baseline score (68%–98%), rather than cross-referencing against the candidate's actual profile.
+  - User requested integrating the real matching engine, providing an elaborate diff comparison of the candidate profile vs. job requirements (skills, salary, workplace setting), and adding actionable guidance (suggesting closing the tab or adjusting profile) when match is below 60%.
+- **Implementation & Architecture**:
+  - **Extension Ground-Truth Match Engine (`extension/modules/popup/match-engine.js`)**:
+    - Created pure, deterministic matching sub-module porting core algorithms from `src/hooks/useJobMatching.ts` adhering to NASA JPL Rules 1 & 4 (< 60 lines per method).
+    - Implemented `normalizeSkillName`, `checkSkillMatch`, `extractSkillsFromText`, `getProfileSkills`, and `parseJobCriteriaFromText` (heuristically extracting workplace setting, salary ranges, and experience bounds).
+    - Implemented `compareSkills` and `calculateMatchScore` with 4-pillar weighting: Skills (40%), Experience (25%), Salary (20%), and Role (15%).
+    - Implemented `getMatchBreakdown` returning an elaborate diff comparison (matched vs. missing skills, salary budget gap, workplace setting fit, and `<60%` low match flag).
+  - **Dynamic Profile Mirroring (`src/hooks/useAuth.tsx` & `src/pages/ProfileEditor.tsx`)**:
+    - Updated `useAuth.tsx` to fetch the user's `users/{uid}/profiles/main` document on authentication and mirror target role, skills, target salary, preferred workplace, and experience into `ascend_auth_session` in `localStorage`.
+    - Updated `ProfileEditor.tsx` to automatically synchronize profile updates into `ascend_auth_session` and dispatch `ascend-auth-change`.
+  - **Server-Side Matcher Proxy (`server.ts`)**:
+    - Added `POST /api/evaluate-fit` endpoint to process scraped job descriptions and compute criteria diffs on demand.
+  - **Fit Evaluator & UI Diff Overhaul (`extension/modules/popup/fit-evaluator.js`, `popup.html`, `css/popup.css`)**:
+    - Enhanced `evaluateActiveTabFit` to retrieve the active tab's scraped content and evaluate against ground-truth profile data.
+    - Added color-coded score gauge with dynamic tier badges (High Match, Solid Fit, Moderate, Low Match).
+    - Added high-visibility **Low Match Alert (< 60%)** with one-click **"Close Tab"** (`chrome.tabs.remove(activeTabId)`) and **"Adjust Profile"** (`#edit-profile`) triggers.
+    - Built comprehensive **Profile vs. Requirements Diff View**:
+      - Matched skills badges (`.diff-chip.matched` in emerald).
+      - Missing skills badges (`.diff-chip.missing` in rose).
+      - Compensation card (candidate target vs. detected job budget).
+      - Workplace setting card (candidate preference vs. requisition type).
+      - Bulleted takeaway reasons from the engine.
+  - **Automated Test Hardening (`tests/unit/extensionArchitecture.test.ts`)**:
+    - Added Test 10: High match calculation and elaborate diff breakdown verification.
+    - Added Test 11: Low match (<60%) threshold trigger, salary budget gap, and workplace setting mismatch verification.
+- **Pre-Flight Validation & Quality Gates**:
+  - `npm test`: All 21 test suites passed with 100% assertions green (0 failures).
+
+---
+
+## [0.5.31-dev.3] - 2026-11-11
+### Public Canonical URL Migration to https://ascend-ats.ai.studio
+- **Context & Requirement**:
+  - User requested updating the auto path / base endpoint to the public/published URL (`https://ascend-ats.ai.studio`) instead of the Google AI Studio dev/preview Cloud Run URL.
+- **Implementation & File Changes**:
+  - **Extension Configuration & Ingestion Endpoint**:
+    - `extension/modules/popup/constants.js`: Updated `APP_BASE_URL` to `'https://ascend-ats.ai.studio'`.
+    - `extension/modules/content/ingest-transport.js`: Updated `INGEST_ENDPOINT` to `'https://ascend-ats.ai.studio/api/ingest-job'`.
+  - **Extension Host Detection & Session Synchronization**:
+    - `extension/modules/content/site-detector.js`: Updated `isAscendApp()` to recognize `host.includes('ascend-ats.ai.studio')` alongside cloud run and localhost identifiers, preventing errant scraper button injection on the production web app.
+    - `extension/modules/popup/auth-manager.js`: Updated `trySyncSessionFromTabs()` to inspect active tabs running `ascend-ats.ai.studio` for seamless localStorage session syncing.
+  - **Manifest Permissions & CSP**:
+    - `extension/manifest.json`: Added `"https://ascend-ats.ai.studio/*"` to `host_permissions` and `content_scripts.matches`. Added `https://ascend-ats.ai.studio` to `connect-src` in `content_security_policy.extension_pages`. Retained dev/preview paths for backward compatibility.
+  - **SEO & Sitemaps**:
+    - `public/Robot.txt` & `public/robots.txt`: Updated `Sitemap` directive to `https://ascend-ats.ai.studio/sitemap.xml`.
+  - **Partner Network & Architecture Documentation**:
+    - `Docs/Ascend_ATS_Partner_Kit.md`: Updated partnership badges, markdown shields, referral sourcing links, and partner hub URLs to `https://ascend-ats.ai.studio`.
+    - `Docs/EXTENSION_ARCHITECTURE.md`: Updated `APP_BASE_URL` and security permission manifests.
+  - **Application Static Config**:
+    - `src/config.ts`: Added `PUBLIC_URL: 'https://ascend-ats.ai.studio'` to `STATIC_CONFIG.APP`.
+  - **Automated Test Hardening**:
+    - `tests/unit/extensionArchitecture.test.ts`: Added test assertions in Test 5 and Test 7 verifying `APP_BASE_URL === 'https://ascend-ats.ai.studio'` and `manifest.host_permissions.includes('https://ascend-ats.ai.studio/*')`.
+- **Pre-Flight Validation & Quality Gates**:
+    - `npm test`: 21/21 test suites passed with 100% green assertions and 0 failures.
+
+---
+
+## [0.5.31-dev.2] - 2026-11-11
+### Browser Extension Modular Refactoring, CSS Unification & Architecture Documentation
+- **Context & Requirement**:
+  - The browser extension had accumulated technical debt in monolithic files (`popup.html` with ~490 lines of inline CSS, `popup.js` with 362 lines performing multiple responsibilities, and `content.js` with 331 lines combining scraping, transport, and DOM injection).
+  - User requested decomposing the extension into sub-components where each function handles one deterministic task, unifying CSS, and adding comprehensive technical documentation.
+- **Implementation & Architecture Refactor**:
+  - **Shared Design Token System (`extension/css/`)**:
+    - Created `tokens.css`: Canonical CSS custom properties for brand (`--primary`), neutrals (`--slate-*`), semantic states (`--emerald-*`, `--rose-*`, `--amber-*`, `--violet-*`, `--sky-*`), font stacks, and radii.
+    - Created `popup.css`: Scoped stylesheet for the 360px popup workspace.
+    - Created `content.css`: Scoped in-page stylesheet for the injected action button and accessible `#ascend-review-overlay` dialog.
+    - Updated `styles.css` as a backward-compatible forwarder importing `tokens.css` and `content.css`.
+  - **Popup Sub-Components (`extension/modules/popup/`)**:
+    - `constants.js`: Canonical `APP_BASE_URL` and `PROMPT_INFO` catalog.
+    - `auth-manager.js`: Cross-tab session synchronization (`trySyncSessionFromTabs`), session teardown (`signOutSession`), and strict RBAC verification (`canAccessRole`).
+    - `prompt-matrix-controller.js`: 3-tier prompt matrix state, button toggling, latency indicator, and `chrome.storage.local` persistence.
+    - `readiness-radar.js`: Profile header card, lettermark avatar, and 4-point readiness checklist rendering.
+    - `fit-evaluator.js`: Active tab fit assessment message dispatch and UI scoring.
+    - `admin-diagnostics.js`: Backend health latency measurement and terminal logging for Master Platform Architects.
+    - `ingest-controller.js`: Inbound job ingestion message dispatch to active tabs.
+    - `popup-ui.js`: View switching between logged-out and authenticated modes, role tabs, access denied alerts, and `bindNavigationLinks`.
+    - `popup.js`: Lean orchestrator reduced to clean, deterministic event wiring under 75 executable lines.
+  - **Content Script Sub-Components (`extension/modules/content/`)**:
+    - `site-detector.js`: Identifies Ascend web app vs. external job boards (LinkedIn, Indeed, GovernmentJobs) and finds DOM injection targets.
+    - `scrapers.js`: Dedicated scrapers for LinkedIn, Indeed, and GovernmentJobs (.term-block parsing), plus fallback article extractor and fit scorer.
+    - `ingest-transport.js`: Normalizes job payloads and dispatches POST requests to `/api/ingest-job`.
+    - `overlay-modal.js`: Constructs accessible pre-submission review modal with Escape key dismissal and prompt tier selection.
+    - `session-observer.js`: Observes Ascend web app tabs and mirrors active auth tokens into `chrome.storage.local`.
+    - `content.js`: Lean orchestrator (< 60 lines) registering mutation observers and handling runtime messages.
+  - **Manifest V3 Update (`extension/manifest.json`)**:
+    - Bumped extension version to `1.2.0`.
+    - Declared modular content scripts sequence and shared CSS files.
+  - **Comprehensive Architecture Documentation (`Docs/EXTENSION_ARCHITECTURE.md`)**:
+    - Created detailed documentation covering system architecture, component diagrams, exhaustive method reference with parameters and return types, unified CSS token reference, RBAC security matrix, and side-loading instructions.
+- **Pre-Flight Validation & Quality Gates**:
+  - Authored unit test suite `tests/unit/extensionArchitecture.test.ts` (9 tests verifying candidate/recruiter/architect RBAC, prompt matrix catalog, CSS token definitions, file integrity, NASA JPL Rule 4 compactness <= 100 lines, and doc existence).
+  - Master unit test harness (`npm test`): 21/21 test suites passed with 100% assertions satisfied and 0 failures.
+  - Full TypeScript and compilation checks (`tsc --noEmit` and Vite build).
+
+---
+
+## [0.5.31-dev.1] - 2026-10-13
+### Implemented Approach A: Mobile Sub-Navigation Bar & Adaptive Typography Enhancement
+- **Context & Diagnostic Finding**:
+  - In `JobSeekerDashboard.tsx` (lines 700–738, 744–782, 794–832), the sub-navigation menu was rendered with `flex flex-wrap gap-4 sm:gap-8` and long desktop text strings (`Job Tracker & AI Copilot`, `Culture & Recruiter Matrix`, `Application Pipeline`, `Top Matches`).
+  - On mobile displays (< 640px), the tabs wrapped across multiple jagged lines, pushing primary content down the viewport and causing mis-clicks. Additionally, the tab header code was triplicated across views.
+- **Implementation of Approach A (`src/components/DashboardSubNav.tsx`)**:
+  - **Hybrid Micro-Icon & Adaptive Typography**:
+    - Mobile (< 640px): Compact noun labels paired with micro-icons (`Matches`, `Pipeline`, `Tracker`, `Culture`).
+    - Desktop (>= 640px): Full titles with icons (`Top Matches`, `Application Pipeline`, `Job Tracker & AI Copilot`, `Culture & Recruiter Matrix`).
+  - **Single-Row Non-Wrapping Horizontal Track**:
+    - Replaced wrapping `flex-wrap` layout with `flex items-center gap-1.5 sm:gap-6 overflow-x-auto no-scrollbar scroll-smooth w-full`.
+    - Buttons styled with `shrink-0 whitespace-nowrap min-h-[40px] sm:min-h-[44px]` ensuring touch accessibility.
+    - Active mobile pills (`bg-blue-50 dark:bg-blue-950/60 font-extrabold`) and desktop bottom indicator animation (`motion.div layoutId="dashboard-sub-tab"`).
+    - Full WCAG 2.1 AA accessibility: `role="tablist"`, `role="tab"`, `aria-selected`, visible focus rings (`focus-visible:ring-2 focus-visible:ring-blue-500`).
+  - **DRY Refactoring (`src/pages/JobSeekerDashboard.tsx`)**:
+    - Replaced triplicated tab JSX with unified `<DashboardSubNav currentView={view} onViewChange={setView} matchesCount={matches.length} pipelineCount={applications.length} />`.
+- **Pre-Flight Validation & Auditing**:
+  - Created unit test suite `tests/unit/dashboardSubNav.test.ts` (5 tests verifying tab counts, exhaustive view coverage, label compactness <= 10 chars, type guard invariants, and WCAG contrast tokens).
+  - Executed master test suite (`npm test`): 20/20 test suites passed with 100% assertions satisfied and 0 failures.
+  - Zero compiler errors or linter warnings (`tsc --noEmit` and Vite build).
+  - Bumped `package.json` and `src/config.ts` version to `0.5.31`.
+  - Logged Audit Record `AUD-2026-005` in `Docs/INDEX_AUDIT.md`. Updated `Docs/STRUCTURE.md`.
+
+---
+
+## [0.5.30-dev.2] - 2026-10-13
+### Seeker Dashboard Action Button Typography & Mobile Height Harmonization
+- **Context & Requirement**:
+  - CSS selectors identified card footer action elements (`Review Details`, `One-Click Apply` / `Auto-Apply Now`, `Apply`, `Applied`, and the posted timestamp).
+  - Requirements: Enforce identical button heights across all action buttons and reduce typography size on mobile devices so buttons fit cleanly without taking up excess horizontal space.
+- **Modifications (`src/pages/JobSeekerDashboard.tsx`)**:
+  - Standardized explicit height on all buttons and badges via `h-9 sm:h-10 inline-flex items-center justify-center whitespace-nowrap`.
+  - Refined typography from `text-sm` with `px-6` down to `text-xs sm:text-sm font-bold` with `px-3 sm:px-4`, reducing mobile width consumption by over 30%.
+  - Downscaled action icons to `w-3.5 h-3.5` with `gap-1.5 sm:gap-2` for consistent vertical alignment and zero line wrapping.
+  - Enhanced container layout to `flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-5 sm:pt-6` with responsive posted date `text-xs sm:text-sm`.
+- **Pre-Flight Validation**:
+  - Full automated test suite verification (`npm test`), linter checks (`tsc --noEmit`), and Vite compilation passed with zero errors and zero warnings.
+
+---
+
 ## [0.5.30-dev.1] - 2026-10-13
 ### Implemented Approach A: Multi-Provider Cascading Logo Engine & Tokenized Word Matching
 - **Context & Diagnostic Finding**:

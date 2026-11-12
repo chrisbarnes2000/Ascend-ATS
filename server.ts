@@ -214,6 +214,102 @@ async function startServer() {
     });
   });
 
+  // Extension Fit Evaluator & Profile Diff Engine
+  app.post('/api/evaluate-fit', (req, res) => {
+    try {
+      const { profile = null, job = {} } = req.body;
+      const title = String(job.title || '').trim();
+      const description = String(job.description || '').trim();
+      const company = String(job.company || '').trim();
+
+      const combinedText = `${title} ${description}`;
+      const lower = combinedText.toLowerCase();
+
+      const COMMON_SKILLS = [
+        'React', 'React.js', 'TypeScript', 'JavaScript', 'Node.js', 'Python', 'Java', 'C++', 'Go',
+        'AWS', 'Docker', 'Kubernetes', 'SQL', 'PostgreSQL', 'MongoDB', 'GraphQL', 'REST API',
+        'Agile', 'Scrum', 'Project Management', 'Product Management', 'UI/UX', 'Figma',
+        'Tailwind CSS', 'CSS', 'HTML', 'Git', 'CI/CD', 'DevOps', 'Communication', 'Leadership',
+        'Data Analysis', 'Machine Learning', 'AI', 'Firebase', 'System Design', 'Redux', 'Next.js'
+      ];
+      const extractedSkills = COMMON_SKILLS.filter(s => lower.includes(s.toLowerCase()));
+
+      let workplaceType = 'Hybrid';
+      if (lower.includes('remote') || lower.includes('work from anywhere')) workplaceType = 'Remote';
+      else if (lower.includes('on-site') || lower.includes('onsite') || lower.includes('in-office')) workplaceType = 'On-Site';
+
+      let minSalary = 0;
+      let maxSalary = 0;
+      const kMatch = combinedText.match(/\$(\d{2,3})[kK]\s*(?:-|to)\s*\$(\d{2,3})[kK]/);
+      if (kMatch) {
+        minSalary = parseInt(kMatch[1], 10) * 1000;
+        maxSalary = parseInt(kMatch[2], 10) * 1000;
+      }
+
+      const candidateSkills = Array.isArray(profile?.skills)
+        ? profile.skills.map((s: any) => typeof s === 'string' ? s : (s?.name || ''))
+        : [];
+      const matchedSkills = extractedSkills.filter(es => candidateSkills.some((cs: string) => cs.toLowerCase() === es.toLowerCase()));
+      const missingSkills = extractedSkills.filter(es => !candidateSkills.some((cs: string) => cs.toLowerCase() === es.toLowerCase()));
+
+      let score = 0.20;
+      if (extractedSkills.length > 0) {
+        score = (matchedSkills.length / extractedSkills.length) * 0.50 + 0.20;
+      }
+      if (profile?.targetRole && title.toLowerCase().includes(profile.targetRole.toLowerCase())) {
+        score += 0.20;
+      }
+      const scoreNum = Math.min(98, Math.max(15, Math.round(score * 100)));
+
+      res.json({
+        overallScore: scoreNum,
+        isLowMatch: scoreNum < 60,
+        skillsMatch: {
+          matched: matchedSkills,
+          missing: missingSkills,
+          ratio: `${matchedSkills.length}/${extractedSkills.length}`
+        },
+        salaryMatch: {
+          jobMin: minSalary,
+          jobMax: maxSalary,
+          candidateTarget: profile?.targetSalary || 0
+        },
+        workplaceMatch: {
+          jobWorkplace: workplaceType,
+          candidatePreference: profile?.preferredWorkplaceType || 'Remote'
+        },
+        jobTitle: title,
+        company: company
+      });
+    } catch (err: any) {
+      console.error("[EvaluateFit] Error processing fit evaluation:", err);
+      res.status(500).json({ error: err.message || 'Error evaluating job fit' });
+    }
+  });
+
+  // Admin Job Board Domain Validation Request Endpoint
+  app.post('/api/admin/job-board-requests', async (req, res) => {
+    try {
+      const { domain = '', url = '', timestamp = Date.now() } = req.body;
+      if (!domain) return res.status(400).json({ error: 'Domain required' });
+
+      if (db) {
+        const reqRef = doc(db, 'job_board_requests', domain.replace(/[\/\.]/g, '_'));
+        await setDoc(reqRef, {
+          domain,
+          url,
+          timestamp,
+          status: 'pending'
+        }, { merge: true });
+      }
+
+      res.json({ success: true, message: `Validation request for ${domain} recorded.` });
+    } catch (err: any) {
+      console.error("[JobBoardRequest] Error:", err);
+      res.status(500).json({ error: err.message || 'Error saving validation request' });
+    }
+  });
+
   // Resume Parsing Logic with 3-Tier Prompt Matrix
   app.post('/api/parse-resume', async (req, res) => {
     try {

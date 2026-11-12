@@ -13,7 +13,9 @@ import { motion } from 'motion/react';
 import { JobTracker } from '../components/tracker/JobTracker';
 import { RecruiterCultureMatrix } from '../components/profile/RecruiterCultureMatrix';
 import { ReportJobModal } from '../components/ReportJobModal';
+import { MultiLocationModal } from '../components/MultiLocationModal';
 import { CompanyLogo } from '../components/CompanyLogo';
+import { DashboardSubNav } from '../components/DashboardSubNav';
 import { normalizeJobSalaryValue } from '../utils/salarySanitizer';
 import { parseAndSanitizeLocationAndWorkplace } from '../utils/locationAndWorkplaceSanitizer';
 
@@ -488,6 +490,13 @@ export const JobSeekerDashboard = () => {
   const { matches, loading: matchingLoading } = useJobMatching(profile);
   const [view, setView] = useState<'matches' | 'pipeline' | 'tracker' | 'culture_matrix'>('matches');
   const [reportingJob, setReportingJob] = useState<any | null>(null);
+  const [multiLocationJob, setMultiLocationJob] = useState<{
+    jobTitle: string;
+    companyName: string;
+    locations: string[];
+    matchedLocation?: string;
+    workplaceType?: 'Remote' | 'Hybrid' | 'On-Site';
+  } | null>(null);
 
   const handleSaveCulturePreferences = async (culturalPreferences: string[], recruiterPrefs: any) => {
     if (!user) return;
@@ -696,91 +705,22 @@ export const JobSeekerDashboard = () => {
 
       {view === 'tracker' ? (
         <div className="space-y-8">
-          {/* Header tabs inside tracker view to match theme */}
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex flex-wrap gap-4 sm:gap-8">
-              <button 
-                onClick={() => setView('matches')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'matches' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Top Matches
-                {view === 'matches' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('pipeline')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'pipeline' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Application Pipeline
-                {view === 'pipeline' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('tracker')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'tracker' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Job Tracker & AI Copilot
-                {view === 'tracker' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('culture_matrix')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'culture_matrix' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Culture & Recruiter Matrix
-                {view === 'culture_matrix' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
-              </button>
-            </div>
-          </div>
+          <DashboardSubNav 
+            currentView={view} 
+            onViewChange={setView} 
+            matchesCount={matches.length} 
+            pipelineCount={applications.length} 
+          />
           <JobTracker profile={profile} />
         </div>
       ) : view === 'culture_matrix' ? (
         <div className="space-y-8">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex flex-wrap gap-4 sm:gap-8">
-              <button 
-                onClick={() => setView('matches')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'matches' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Top Matches
-                {view === 'matches' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('pipeline')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'pipeline' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Application Pipeline
-                {view === 'pipeline' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('tracker')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'tracker' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Job Tracker & AI Copilot
-                {view === 'tracker' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('culture_matrix')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'culture_matrix' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Culture & Recruiter Matrix
-                {view === 'culture_matrix' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
-              </button>
-            </div>
-          </div>
+          <DashboardSubNav 
+            currentView={view} 
+            onViewChange={setView} 
+            matchesCount={matches.length} 
+            pipelineCount={applications.length} 
+          />
           <RecruiterCultureMatrix
             role="jobSeeker"
             profile={profile || undefined}
@@ -791,46 +731,12 @@ export const JobSeekerDashboard = () => {
         <div className={`grid grid-cols-1 ${view === 'pipeline' ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-12`}>
         {/* Main Content Area */}
         <div className={`${view === 'pipeline' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-8`}>
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex flex-wrap gap-4 sm:gap-8">
-              <button 
-                onClick={() => setView('matches')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'matches' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Top Matches
-                {view === 'matches' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('pipeline')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'pipeline' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Application Pipeline
-                {view === 'pipeline' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('tracker')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'tracker' ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Job Tracker & AI Copilot
-                {view === 'tracker' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-full" />}
-              </button>
-              <button 
-                onClick={() => setView('culture_matrix')}
-                className={`pb-4 px-2 font-bold text-sm transition-all relative ${
-                  view === 'culture_matrix' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Culture & Recruiter Matrix
-                {view === 'culture_matrix' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-600 rounded-full" />}
-              </button>
-            </div>
-          </div>
+          <DashboardSubNav 
+            currentView={view} 
+            onViewChange={setView} 
+            matchesCount={matches.length} 
+            pipelineCount={applications.length} 
+          />
 
           <div className="mt-8">
             {view === 'matches' ? (
@@ -843,7 +749,7 @@ export const JobSeekerDashboard = () => {
                     const matchBreakdown = getMatchBreakdown(profile, job);
                     const jobMinSalary = normalizeJobSalaryValue(job.parsedCriteria?.salaryRange?.min ?? job.salaryMin, 55000);
                     const jobMaxSalary = normalizeJobSalaryValue(job.parsedCriteria?.salaryRange?.max ?? job.salaryMax, 85000);
-                    const locInfo = parseAndSanitizeLocationAndWorkplace(job);
+                    const locInfo = parseAndSanitizeLocationAndWorkplace(job, profile);
 
                     return (
                       <motion.div 
@@ -931,10 +837,31 @@ export const JobSeekerDashboard = () => {
                              }`}>
                                {locInfo.workplaceType}
                              </span>
-                             <span>
+                             <span className="truncate max-w-[160px] sm:max-w-none">
                                {locInfo.workplaceSummary.includes('•') ? locInfo.workplaceSummary.split('•')[1].trim() + ' • ' : ''}
                                {locInfo.location}
                              </span>
+                             {locInfo.isMultiLocation && (
+                               <button
+                                 type="button"
+                                 onClick={(e) => {
+                                   e.preventDefault();
+                                   e.stopPropagation();
+                                   setMultiLocationJob({
+                                     jobTitle: job.title,
+                                     companyName: job.companyName,
+                                     locations: locInfo.allLocations,
+                                     matchedLocation: locInfo.matchedPreferredLocation,
+                                     workplaceType: locInfo.workplaceType
+                                   });
+                                 }}
+                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 ml-0.5 text-[10px] font-extrabold rounded-md bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/70 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 transition-colors cursor-pointer border border-blue-200/80 dark:border-blue-700/80"
+                                 title={`View all ${locInfo.allLocations.length} locations considered by ${job.companyName}`}
+                                 aria-label={`View all ${locInfo.allLocations.length} locations for ${job.title}`}
+                                >
+                                  <span>+{locInfo.additionalLocationsCount} more</span>
+                                </button>
+                             )}
                            </div>
                            {locInfo.hasTravelRequirement && (
                              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/80 px-3 py-1.5 rounded-xl border border-amber-200/80 dark:border-amber-800/80 shadow-xs">
@@ -986,31 +913,37 @@ export const JobSeekerDashboard = () => {
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between pt-6 border-t border-slate-200/50 dark:border-slate-800">
-                          <div className="flex items-center gap-2 text-slate-500 text-sm">
-                             <Clock className="w-4 h-4" /> Posted {formatTimeAgo(job.createdAt)}
+                        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-5 sm:pt-6 border-t border-slate-200/50 dark:border-slate-800">
+                          <div className="flex items-center gap-1.5 text-slate-500 text-xs sm:text-sm shrink-0">
+                             <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" /> Posted {formatTimeAgo(job.createdAt)}
                           </div>
-                          <div className="flex items-center gap-3">
-                            <a href={`#job/${job.id}`} className="px-4 py-2.5 rounded-xl font-bold text-sm bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all">
+                          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                            <a 
+                              href={`#job/${job.id}`} 
+                              className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-sm bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 transition-all inline-flex items-center justify-center whitespace-nowrap"
+                            >
                               Review Details
                             </a>
                             {applications.some(app => app.jobId === job.id) ? (
-                              <span className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-emerald-600 text-white cursor-default shadow-sm">
-                                <Check className="w-4 h-4" /> Applied
+                              <span className="h-9 sm:h-10 inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-sm bg-emerald-600 text-white cursor-default shadow-sm whitespace-nowrap">
+                                <Check className="w-3.5 h-3.5" /> Applied
                               </span>
                             ) : tier === 'one-click' || tier === 'auto' ? (
                               <button 
                                 onClick={(e) => handleOneClickApply(job, tier, e)}
                                 disabled={applyingJobId === job.id}
-                                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 cursor-pointer"
+                                className="h-9 sm:h-10 inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-sm bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap"
                               >
-                                {applyingJobId === job.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                {applyingJobId === job.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                                 {tier === 'auto' ? 'Auto-Apply Now' : 'One-Click Apply'}
                               </button>
                             ) : (
-                              <a href={`#job/${job.id}`} className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition-all">
+                              <a 
+                                href={`#job/${job.id}`} 
+                                className="h-9 sm:h-10 inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition-all whitespace-nowrap"
+                              >
                                 Apply
-                                <ChevronRight className="w-4 h-4" />
+                                <ChevronRight className="w-3.5 h-3.5" />
                               </a>
                             )}
                           </div>
@@ -1149,6 +1082,18 @@ export const JobSeekerDashboard = () => {
           isOpen={Boolean(reportingJob)}
           onClose={() => setReportingJob(null)}
           job={reportingJob}
+        />
+      )}
+
+      {multiLocationJob && (
+        <MultiLocationModal
+          isOpen={Boolean(multiLocationJob)}
+          onClose={() => setMultiLocationJob(null)}
+          jobTitle={multiLocationJob.jobTitle}
+          companyName={multiLocationJob.companyName}
+          allLocations={multiLocationJob.locations}
+          matchedLocation={multiLocationJob.matchedLocation}
+          workplaceType={multiLocationJob.workplaceType}
         />
       )}
     </div>

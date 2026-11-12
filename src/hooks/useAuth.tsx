@@ -89,6 +89,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const configured = await checkProfileConfigured(firebaseUser.uid, appUserData.accountType, firebaseUser.email);
             setIsProfileConfigured(configured);
 
+            // Fetch profile summary for browser extension match engine
+            let profileSummary: any = null;
+            try {
+              const profSnap = await getDoc(doc(db, `users/${firebaseUser.uid}/profiles/main`));
+              if (profSnap.exists()) {
+                const pd = profSnap.data();
+                profileSummary = {
+                  targetRole: pd.targetRole || '',
+                  skills: pd.skills || [],
+                  targetSalary: pd.targetSalary || 0,
+                  preferredWorkplaceType: pd.preferredWorkplaceType || 'Remote',
+                  workExperience: Array.isArray(pd.workExperience) ? pd.workExperience.map((w: any) => ({
+                    title: w.title || '',
+                    company: w.company || '',
+                    skills: w.skills || []
+                  })) : [],
+                  culturalPreferences: pd.culturalPreferences || [],
+                  targetBenefits: pd.targetBenefits || pd.preferredBenefits || []
+                };
+              }
+            } catch (pErr) {
+              console.warn("Could not load profile for session mirror:", pErr);
+            }
+
             // Mirror session for browser extension bridge
             const sessionPayload = {
               uid: firebaseUser.uid,
@@ -96,7 +120,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               displayName: firebaseUser.displayName || appUserData.email?.split('@')[0],
               accountType: appUserData.accountType || 'jobSeeker',
               isAdmin: firebaseUser.email === 'Chris.Barnes.2000@me.com' || firebaseUser.uid === '393uzPXnOdPW3CE3rdhmDMEldzm1',
-              profileCompleted: appUserData.profileCompleted || false
+              profileCompleted: appUserData.profileCompleted || false,
+              profile: profileSummary
             };
             try {
               localStorage.setItem('ascend_auth_session', JSON.stringify(sessionPayload));

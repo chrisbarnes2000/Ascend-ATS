@@ -13,4 +13,4 @@ Allow: /llms.txt
 Allow: /site.webmanifest
 Disallow: /api/
 
-Sitemap: https://ais-pre-hxvjrue22mivfrz5oy7q2w-154621295711.us-east5.run.app/sitemap.xml
+Sitemap: https://ascend-ats.ai.studio/sitemap.xml

@@ -136,6 +136,25 @@ export const ProfileEditor = () => {
         updatedAt: serverTimestamp()
       });
       await setDoc(profileRef, payload, { merge: true });
+      try {
+        const rawSession = localStorage.getItem('ascend_auth_session');
+        if (rawSession) {
+          const s = JSON.parse(rawSession);
+          s.profile = {
+            targetRole: profile.targetRole || '',
+            skills: profile.skills || [],
+            targetSalary: profile.targetSalary || 0,
+            preferredWorkplaceType: profile.preferredWorkplaceType || 'Remote',
+            workExperience: profile.workExperience || [],
+            culturalPreferences: profile.culturalPreferences || [],
+            targetBenefits: profile.targetBenefits || (profile as any).preferredBenefits || []
+          };
+          localStorage.setItem('ascend_auth_session', JSON.stringify(s));
+          window.dispatchEvent(new CustomEvent('ascend-auth-change', { detail: s }));
+        }
+      } catch (e) {
+        console.warn("Could not sync profile update to local session:", e);
+      }
       setNotification({ type: 'success', message: 'Profile saved successfully!' });
       setTimeout(() => setNotification(null), 4000);
     } catch (err: any) {

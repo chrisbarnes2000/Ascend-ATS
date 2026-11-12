@@ -4,499 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ascend ATS Ingestion Bridge</title>
-  <style>
-    :root {
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --slate-950: #020617;
-      --slate-900: #0f172a;
-      --slate-800: #1e293b;
-      --slate-700: #334155;
-      --slate-500: #64748b;
-      --slate-400: #94a3b8;
-      --slate-100: #f1f5f9;
-      --slate-50: #f8fafc;
-      --emerald-600: #059669;
-      --emerald-50: #ecfdf5;
-      --rose-600: #e11d48;
-      --rose-50: #fff1f2;
-      --amber-600: #d97706;
-      --amber-50: #fffbeb;
-      --violet-600: #7c3aed;
-      --violet-50: #f5f3ff;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }
-
-    body {
-      width: 360px;
-      background: #ffffff;
-      color: var(--slate-900);
-      font-size: 13px;
-      line-height: 1.4;
-      padding: 16px;
-    }
-
-    /* Header */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--slate-100);
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .logo {
-      width: 28px;
-      height: 28px;
-      background: var(--primary);
-      color: #ffffff;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      font-size: 15px;
-    }
-    .title-group h1 {
-      font-size: 15px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-    .title-group p {
-      font-size: 10px;
-      color: var(--slate-500);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .signout-btn {
-      background: none;
-      border: 1px solid var(--slate-200);
-      color: var(--slate-500);
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-size: 10px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .signout-btn:hover {
-      background: var(--slate-100);
-      color: var(--rose-600);
-      border-color: #fca5a5;
-    }
-
-    /* Logged Out View */
-    .logged-out-card {
-      text-align: center;
-      padding: 24px 12px;
-    }
-    .login-icon-box {
-      width: 48px;
-      height: 48px;
-      background: #eff6ff;
-      color: var(--primary);
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 12px auto;
-    }
-    .logged-out-card h2 {
-      font-size: 16px;
-      font-weight: 800;
-      margin-bottom: 6px;
-      color: var(--slate-900);
-    }
-    .logged-out-card p {
-      font-size: 12px;
-      color: var(--slate-500);
-      margin-bottom: 18px;
-      line-height: 1.5;
-    }
-
-    /* Role Switcher Tabs */
-    .role-tabs {
-      display: flex;
-      background: var(--slate-100);
-      padding: 3px;
-      border-radius: 12px;
-      margin-bottom: 12px;
-      gap: 2px;
-    }
-    .role-tab {
-      flex: 1;
-      padding: 6px 4px;
-      background: transparent;
-      border: none;
-      border-radius: 9px;
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--slate-500);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      text-align: center;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-    }
-    .role-tab.active {
-      background: #ffffff;
-      color: var(--slate-900);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    }
-    .role-tab.locked {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-    .role-tab.locked:hover {
-      color: var(--rose-600);
-    }
-
-    /* Security Warning / Access Denied Box */
-    .access-denied-box {
-      background: var(--rose-50);
-      border: 1px solid #fecdd3;
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 14px;
-      display: none;
-      animation: fadeIn 0.2s ease-out;
-    }
-    .access-denied-box.active {
-      display: block;
-    }
-    .access-denied-header {
-      font-size: 11px;
-      font-weight: 800;
-      color: var(--rose-600);
-      text-transform: uppercase;
-      margin-bottom: 4px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .access-denied-text {
-      font-size: 11px;
-      color: #9f1239;
-      line-height: 1.4;
-      margin-bottom: 8px;
-    }
-    .access-denied-action {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 800;
-      color: #ffffff;
-      background: var(--rose-600);
-      padding: 4px 10px;
-      border-radius: 6px;
-      text-decoration: none;
-      cursor: pointer;
-    }
-
-    /* Profile Card */
-    .profile-card {
-      background: var(--slate-50);
-      border: 1px solid var(--slate-100);
-      border-radius: 14px;
-      padding: 12px;
-      margin-bottom: 14px;
-    }
-    .profile-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    .profile-info {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: #e0e7ff;
-      color: var(--primary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 12px;
-    }
-    .profile-names h3 {
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .profile-names p {
-      font-size: 10px;
-      color: var(--slate-500);
-    }
-    .role-badge {
-      font-size: 9px;
-      font-weight: 800;
-      padding: 2px 6px;
-      border-radius: 6px;
-      text-transform: uppercase;
-      background: #eff6ff;
-      color: var(--primary);
-    }
-
-    /* Progress bar */
-    .progress-bar-container {
-      margin-top: 6px;
-    }
-    .progress-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      font-weight: 700;
-      margin-bottom: 4px;
-      color: var(--slate-700);
-    }
-    .progress-track {
-      width: 100%;
-      height: 6px;
-      background: #e2e8f0;
-      border-radius: 999px;
-      overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--primary), #6366f1);
-      border-radius: 999px;
-      transition: width 0.4s ease;
-    }
-
-    /* Checks Pills */
-    .checks-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-top: 8px;
-    }
-    .check-pill {
-      font-size: 10px;
-      padding: 4px 6px;
-      border-radius: 6px;
-      background: #ffffff;
-      border: 1px solid var(--slate-100);
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      color: var(--slate-700);
-      font-weight: 600;
-    }
-    .check-pill.ok {
-      border-color: #bbf7d0;
-      color: var(--emerald-600);
-    }
-
-    /* Prompt Version Matrix */
-    .prompt-section {
-      margin-bottom: 14px;
-    }
-    .section-title {
-      font-size: 10px;
-      font-weight: 800;
-      color: var(--slate-400);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 6px;
-      display: flex;
-      justify-content: space-between;
-    }
-    .prompt-selector {
-      display: flex;
-      gap: 6px;
-    }
-    .prompt-btn {
-      flex: 1;
-      padding: 7px 4px;
-      border: 1px solid #e2e8f0;
-      background: #ffffff;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--slate-700);
-      text-align: center;
-      transition: all 0.15s ease;
-    }
-    .prompt-btn.active {
-      border-color: var(--primary);
-      background: #eff6ff;
-      color: var(--primary);
-      box-shadow: 0 1px 2px rgba(37, 99, 235, 0.15);
-    }
-    .prompt-btn .tag {
-      display: block;
-      font-size: 8px;
-      text-transform: uppercase;
-      opacity: 0.8;
-      margin-top: 1px;
-    }
-    .prompt-desc {
-      font-size: 10px;
-      color: var(--slate-500);
-      margin-top: 6px;
-      background: var(--slate-50);
-      padding: 6px 8px;
-      border-radius: 8px;
-      border-left: 2px solid var(--primary);
-    }
-
-    /* Main Action Buttons */
-    .action-btn-primary {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      background: var(--slate-900);
-      color: #ffffff;
-      border: none;
-      padding: 11px 16px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 800;
-      cursor: pointer;
-      transition: all 0.2s;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      margin-bottom: 8px;
-    }
-    .action-btn-primary:hover {
-      background: var(--slate-800);
-      transform: translateY(-1px);
-    }
-    .action-btn-secondary {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      background: #ffffff;
-      color: var(--slate-800);
-      border: 1px solid #cbd5e1;
-      padding: 9px 14px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.15s;
-      margin-bottom: 12px;
-    }
-    .action-btn-secondary:hover {
-      background: var(--slate-50);
-      border-color: #94a3b8;
-    }
-
-    /* Quick Links Grid */
-    .quick-links {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 6px;
-      margin-top: 8px;
-    }
-    .quick-link-btn {
-      padding: 8px 4px;
-      background: var(--slate-50);
-      border: 1px solid var(--slate-100);
-      border-radius: 10px;
-      color: var(--slate-700);
-      font-size: 10px;
-      font-weight: 700;
-      text-align: center;
-      text-decoration: none;
-      display: block;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .quick-link-btn:hover {
-      background: #ffffff;
-      border-color: #cbd5e1;
-      color: var(--primary);
-    }
-
-    /* Assessment Banner */
-    .assessment-box {
-      margin-top: 10px;
-      padding: 10px;
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
-      border-radius: 10px;
-      font-size: 11px;
-      display: none;
-    }
-    .assessment-box.active {
-      display: block;
-    }
-    .assessment-score {
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--emerald-600);
-      margin-bottom: 2px;
-    }
-
-    /* Terminal Box for Admin */
-    .terminal-box {
-      background: #090d16;
-      color: #38bdf8;
-      font-family: monospace;
-      font-size: 10px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      max-height: 80px;
-      overflow-y: auto;
-      margin-top: 8px;
-      display: none;
-      line-height: 1.4;
-    }
-    .terminal-box.active {
-      display: block;
-    }
-
-    /* Footer */
-    .footer {
-      margin-top: 14px;
-      padding-top: 10px;
-      border-top: 1px solid var(--slate-100);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 10px;
-      color: var(--slate-400);
-    }
-    .footer a {
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: 700;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/popup.css">
 </head>
 <body>
 
@@ -511,8 +20,8 @@
     </div>
     <div class="header-actions">
       <button class="signout-btn" id="btn-signout" title="Sign out of Ascend ATS" style="display: none;">Sign Out</button>
-      <div class="status-pill" id="conn-pill" style="display: flex; align-items: center; gap: 5px; padding: 4px 8px; background: var(--emerald-50); color: var(--emerald-600); border-radius: 999px; font-size: 10px; font-weight: 700;">
-        <div style="width: 6px; height: 6px; background: var(--emerald-600); border-radius: 50%;"></div>
+      <div class="status-pill" id="conn-pill">
+        <div class="status-dot"></div>
         <span id="conn-status">Online</span>
       </div>
     </div>
@@ -651,8 +160,61 @@
       </button>
 
       <div class="assessment-box" id="assessment-box">
-        <div class="assessment-score" id="assess-score">92% Match Score</div>
-        <div id="assess-details">Strong alignment with core competencies.</div>
+        <div class="assessment-header">
+          <div class="assessment-score" id="assess-score">--% Match Assessment</div>
+          <span class="assessment-tier-badge" id="assess-tier-badge">Pending</span>
+        </div>
+        <div id="assess-details" class="assess-details-text">Cross-referencing required skills against your verified profile.</div>
+
+        <!-- Low Match Action Banner (<60%) -->
+        <div class="low-match-alert" id="low-match-alert" style="display: none;">
+          <div class="low-match-title">
+            <span>⚠️ Low Match Warning (&lt; 60%)</span>
+          </div>
+          <p class="low-match-desc">
+            This job differs substantially from your profile qualifications or target compensation. You can close this tab or adjust your profile criteria.
+          </p>
+          <div class="low-match-actions">
+            <button type="button" class="btn-close-tab" id="btn-close-tab" title="Close this job posting tab">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              Close Tab
+            </button>
+            <button type="button" class="btn-adjust-profile" id="btn-adjust-profile" title="Open Ascend Profile Editor">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              Adjust Profile
+            </button>
+          </div>
+        </div>
+
+        <!-- Elaborate Diff Comparison -->
+        <div class="diff-container" id="diff-container" style="display: none;">
+          <div class="diff-section-title">Profile vs Requirements Diff</div>
+
+          <div class="diff-skills-block">
+            <div class="diff-sub-label">
+              <span class="diff-tag-green">✅ Matched Qualifications (<span id="diff-matched-count">0</span>)</span>
+            </div>
+            <div class="diff-chips-wrapper" id="diff-matched-chips"></div>
+
+            <div class="diff-sub-label" style="margin-top: 6px;">
+              <span class="diff-tag-rose">⚠️ Missing Requirements (<span id="diff-missing-count">0</span>)</span>
+            </div>
+            <div class="diff-chips-wrapper" id="diff-missing-chips"></div>
+          </div>
+
+          <div class="diff-criteria-grid">
+            <div class="diff-crit-card" id="diff-crit-salary">
+              <div class="diff-crit-label">💰 Compensation</div>
+              <div class="diff-crit-val" id="diff-val-salary">Checking range...</div>
+            </div>
+            <div class="diff-crit-card" id="diff-crit-workplace">
+              <div class="diff-crit-label">🌐 Setting</div>
+              <div class="diff-crit-val" id="diff-val-workplace">Checking...</div>
+            </div>
+          </div>
+
+          <div class="diff-reasons" id="diff-reasons-list"></div>
+        </div>
       </div>
 
       <div class="section-title" style="margin-top: 10px;">Quick Navigation</div>
@@ -706,9 +268,9 @@
       </button>
 
       <div class="terminal-box" id="admin-terminal">
-        > Pinging Ascend API health...<br>
-        > Checking Gemini 3.8 Flash quota...<br>
-        > Prompt matrix: V1, V2, V3 active.
+        &gt; Pinging Ascend API health...<br>
+        &gt; Checking Gemini Engine quota...<br>
+        &gt; Prompt matrix: V1, V2, V3 active.
       </div>
 
       <div class="section-title" style="margin-top: 10px;">Admin Actions</div>
@@ -726,6 +288,6 @@
     <a href="#" id="open-web-app">Launch App &rarr;</a>
   </div>
 
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

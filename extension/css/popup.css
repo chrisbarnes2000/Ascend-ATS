@@ -1,0 +1,776 @@
+/**
+ * Ascend ATS Extension - Popup Workspace Stylesheet
+ * Governs the 360px popup workspace UI across logged-out, seeker, recruiter, and admin views.
+ */
+
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+}
+
+body {
+  width: 360px;
+  background: var(--white);
+  color: var(--slate-900);
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--slate-100);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo {
+  width: 28px;
+  height: 28px;
+  background: var(--primary);
+  color: var(--white);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 15px;
+  box-shadow: var(--shadow-xs);
+}
+
+.title-group h1 {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--slate-900);
+}
+
+.title-group p {
+  font-size: 10px;
+  color: var(--slate-500);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.signout-btn {
+  background: none;
+  border: 1px solid var(--slate-200);
+  color: var(--slate-500);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.signout-btn:hover {
+  background: var(--slate-100);
+  color: var(--rose-600);
+  border-color: #fca5a5;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: var(--emerald-50);
+  color: var(--emerald-600);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+/* Logged Out View */
+.logged-out-card {
+  text-align: center;
+  padding: 24px 12px;
+}
+
+.login-icon-box {
+  width: 48px;
+  height: 48px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: var(--radius-3xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px auto;
+}
+
+.logged-out-card h2 {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  color: var(--slate-900);
+}
+
+.logged-out-card p {
+  font-size: 12px;
+  color: var(--slate-500);
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+/* Role Switcher Tabs */
+.role-tabs {
+  display: flex;
+  background: var(--slate-100);
+  padding: 3px;
+  border-radius: var(--radius-xl);
+  margin-bottom: 12px;
+  gap: 2px;
+}
+
+.role-tab {
+  flex: 1;
+  padding: 6px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--slate-500);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.role-tab.active {
+  background: var(--white);
+  color: var(--slate-900);
+  box-shadow: var(--shadow-sm);
+}
+
+.role-tab.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.role-tab.locked:hover {
+  color: var(--rose-600);
+}
+
+/* Security Warning / Access Denied Box */
+.access-denied-box {
+  background: var(--rose-50);
+  border: 1px solid #fecdd3;
+  border-radius: var(--radius-xl);
+  padding: 12px;
+  margin-bottom: 14px;
+  display: none;
+  animation: fadeIn var(--transition-normal);
+}
+
+.access-denied-box.active {
+  display: block;
+}
+
+.access-denied-header {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--rose-600);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.access-denied-text {
+  font-size: 11px;
+  color: #9f1239;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.access-denied-action {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--white);
+  background: var(--rose-600);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Profile Card */
+.profile-card {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  border-radius: var(--radius-2xl);
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.profile-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e0e7ff;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.profile-names h3 {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--slate-900);
+}
+
+.profile-names p {
+  font-size: 10px;
+  color: var(--slate-500);
+}
+
+.role-badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+/* Progress bar */
+.progress-bar-container {
+  margin-top: 6px;
+}
+
+.progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--slate-700);
+}
+
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), #6366f1);
+  border-radius: var(--radius-full);
+  transition: width 0.4s ease;
+}
+
+/* Checks Pills */
+.checks-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.check-pill {
+  font-size: 10px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  border: 1px solid var(--slate-100);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--slate-700);
+  font-weight: 600;
+}
+
+.check-pill.ok {
+  border-color: #bbf7d0;
+  color: var(--emerald-600);
+}
+
+/* Prompt Version Matrix */
+.prompt-section {
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--slate-400);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.prompt-selector {
+  display: flex;
+  gap: 6px;
+}
+
+.prompt-btn {
+  flex: 1;
+  padding: 7px 4px;
+  border: 1px solid #e2e8f0;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--slate-700);
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.prompt-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.15);
+}
+
+.prompt-btn .tag {
+  display: block;
+  font-size: 8px;
+  text-transform: uppercase;
+  opacity: 0.8;
+  margin-top: 1px;
+}
+
+.prompt-desc {
+  font-size: 10px;
+  color: var(--slate-500);
+  margin-top: 6px;
+  background: var(--slate-50);
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  border-left: 2px solid var(--primary);
+}
+
+/* Main Action Buttons */
+.action-btn-primary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--slate-900);
+  color: var(--white);
+  border: none;
+  padding: 11px 16px;
+  border-radius: var(--radius-xl);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 8px;
+}
+
+.action-btn-primary:hover {
+  background: var(--slate-800);
+  transform: translateY(-1px);
+}
+
+.action-btn-secondary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--white);
+  color: var(--slate-800);
+  border: 1px solid #cbd5e1;
+  padding: 9px 14px;
+  border-radius: var(--radius-xl);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: 12px;
+}
+
+.action-btn-secondary:hover {
+  background: var(--slate-50);
+  border-color: var(--slate-400);
+}
+
+/* Quick Links Grid */
+.quick-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.quick-link-btn {
+  padding: 8px 4px;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  border-radius: var(--radius-lg);
+  color: var(--slate-700);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  display: block;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.quick-link-btn:hover {
+  background: var(--white);
+  border-color: var(--slate-300);
+  color: var(--primary);
+}
+
+/* Assessment Banner */
+.assessment-box {
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-xl);
+  font-size: 11px;
+  display: none;
+  box-shadow: var(--shadow-sm);
+  animation: fadeIn var(--transition-normal);
+}
+
+.assessment-box.active {
+  display: block;
+}
+
+.assessment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.assessment-score {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--slate-900);
+}
+
+.assessment-tier-badge {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: var(--slate-100);
+  color: var(--slate-600);
+}
+
+.assessment-tier-badge.tier-high {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.assessment-tier-badge.tier-med {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.assessment-tier-badge.tier-fair {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.assessment-tier-badge.tier-low {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.assess-details-text {
+  font-size: 11px;
+  color: var(--slate-600);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+/* Low Match Alert (<60%) */
+.low-match-alert {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: var(--radius-lg);
+  padding: 10px;
+  margin: 8px 0;
+}
+
+.low-match-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #be123c;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+
+.low-match-desc {
+  font-size: 10px;
+  color: #881337;
+  line-height: 1.35;
+  margin-bottom: 8px;
+}
+
+.low-match-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-close-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: #e11d48;
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.btn-close-tab:hover {
+  background: #be123c;
+}
+
+.btn-adjust-profile {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--white);
+  color: #be123c;
+  border: 1px solid #fda4af;
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-adjust-profile:hover {
+  background: #fff1f2;
+  border-color: #f43f5e;
+}
+
+/* Elaborate Diff Container */
+.diff-container {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--slate-200);
+}
+
+.diff-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--slate-500);
+  margin-bottom: 6px;
+}
+
+.diff-sub-label {
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.diff-tag-green {
+  color: #15803d;
+}
+
+.diff-tag-rose {
+  color: #be123c;
+}
+
+.diff-chips-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.diff-chip {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.diff-chip.matched {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.diff-chip.missing {
+  background: #ffe4e6;
+  color: #9f1239;
+  border: 1px solid #fecdd3;
+}
+
+.diff-criteria-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.diff-crit-card {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+}
+
+.diff-crit-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--slate-500);
+  margin-bottom: 2px;
+}
+
+.diff-crit-val {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--slate-800);
+  line-height: 1.25;
+}
+
+.diff-reasons {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--slate-600);
+  line-height: 1.4;
+  padding-left: 4px;
+}
+
+.diff-reason-item {
+  position: relative;
+  padding-left: 10px;
+  margin-bottom: 2px;
+}
+
+.diff-reason-item::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+}
+
+/* Terminal Box for Admin */
+.terminal-box {
+  background: #090d16;
+  color: #38bdf8;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  max-height: 80px;
+  overflow-y: auto;
+  margin-top: 8px;
+  display: none;
+  line-height: 1.4;
+}
+
+.terminal-box.active {
+  display: block;
+}
+
+/* Footer */
+.footer {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--slate-100);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: var(--slate-400);
+}
+
+.footer a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

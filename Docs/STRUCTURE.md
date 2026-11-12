@@ -15,6 +15,7 @@
 │   ├── GovJobs_Bridge_Integration_Guide.md # Technical spec for NEOGOV / GovernmentJobs.com ingestion
 │   ├── FastCompany_26_Cultural_Values.md # Fast Company Impact Council 26 Cultural Values tracking doc
 │   ├── Manpower_5_Keys_Working_With_Recruiter.md # Manpower 5 Keys to Working with a Recruiter tracking doc
+│   ├── EXTENSION_ARCHITECTURE.md # Architecture & sub-components specification for browser extension
 │   └── Ascend_ATS_Partner_Kit.md # Partnership badges and markdown integration kit
 ├── /public/               # Public static assets, machine-readable indexes & device icons
 │   ├── templates/         # Downloadable JSON templates
@@ -36,11 +37,26 @@
 │   ├── 400.html           # Standalone accessible 400 Bad Request error page
 │   ├── 404.html           # Standalone accessible 404 Not Found error page
 │   └── 500.html           # Standalone accessible 500 Internal Server Error page
+├── /extension/            # Browser Extension (Manifest V3 Ingestion Bridge)
+│   ├── manifest.json      # Manifest V3 configuration and content scripts registry
+│   ├── popup.html         # Lean semantic popup workspace template
+│   ├── popup.js           # Main popup orchestrator (< 60 lines)
+│   ├── content.js         # Main content script orchestrator (< 60 lines)
+│   ├── background.js      # Background service worker (contextMenus)
+│   ├── css/               # Unified design token stylesheets
+│   │   ├── tokens.css     # Canonical shared CSS variables (colors, radii, shadows)
+│   │   ├── popup.css      # Scoped popup workspace styles
+│   │   └── content.css    # Scoped injected button and modal styles
+│   └── modules/           # Decomposed single-responsibility sub-components
+│       ├── popup/         # Popup sub-components (auth-manager, prompt-matrix, readiness-radar, fit-evaluator, popup-ui, ingest-controller, admin-diagnostics, constants)
+│       └── content/       # Content script sub-components (site-detector, scrapers, ingest-transport, overlay-modal, session-observer)
 ├── /src/                  # React Application Source Code
 │   ├── components/        # Reusable UI components
 │   │   ├── admin/         # Decomposed Admin Terminal subcomponents (AdminHeaderStats, AdminJobModerationTab, AdminJobValidationModal, AdminPostDetailsModal, AdminDataSeedingTab, AdminInvitationsTab, AdminPartnerRequestsTab, AdminRecruiterLeadsTab, AdminMassImportTab, AdminSecurityTab, AdminConfirmationModal, adminMockData)
 │   │   ├── profile/       # Profile management editors (TargetIndicatorsEditor, IndustryEditor, LocationEditor, ExperienceEditor, PersonalInfoEditor, SkillsEditor, PrivacyControls, DeiAccommodationsEditor, SectionOrderEditor)
 │   │   ├── tracker/       # Job tracker, ingestion form, and AI resume tailoring workspace
+│   │   ├── DashboardSubNav.tsx # Responsive adaptive mobile sub-navigation bar with micro-icons and concise typography
+│   │   ├── CompanyLogo.tsx # Multi-provider cascading company logo & monogram component
 │   │   └── ReportJobModal.tsx # Multi-role candidate/recruiter modal for reporting misparsed or bad postings
 │   ├── data/              # Static catalogs & rosters (culturalValuesCatalog.ts, skillsCatalog.ts, masterContactRoster.ts)
 │   ├── firebase/          # Firebase configuration and initialization
@@ -50,7 +66,7 @@
 │   └── utils/             # Modular utilities (e.g., identityGovernance, jobDedup, profileMerge, materialShiftEngine, applicationLifecycle, jsonProfileParser, massOutreachParser, textWhitespaceNormalizer, locationAndWorkplaceSanitizer, salarySanitizer, companyLogoResolver)
 ├── /tests/                # Automated unit and integration test suite
 │   ├── runAllTests.ts     # Master test execution harness
-│   └── unit/              # High-density invariant and boundary unit tests (e.g., companyLogoResolver.test.ts, textWhitespaceNormalizer.test.ts, locationAndWorkplaceSanitizer.test.ts, salarySanitizer.test.ts, jobModerationAndNlpGuards.test.ts, jobDedup.test.ts, profileMerge.test.ts, materialShiftEngine.test.ts)
+│   └── unit/              # High-density invariant and boundary unit tests (e.g., dashboardSubNav.test.ts, companyLogoResolver.test.ts, textWhitespaceNormalizer.test.ts, locationAndWorkplaceSanitizer.test.ts, salarySanitizer.test.ts, jobModerationAndNlpGuards.test.ts, jobDedup.test.ts, profileMerge.test.ts, materialShiftEngine.test.ts)
 ├── /server.ts             # Express server entry point (API and Vite integration)
 └── /package.json          # Dependency management and script definitions
 ```

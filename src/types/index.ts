@@ -383,6 +383,7 @@ export interface Job {
   department?: string;
   workplaceType?: 'Remote' | 'Hybrid' | 'On-Site';
   location?: string;
+  locations?: string[];
   salaryMin?: number;
   salaryMax?: number;
   benefits?: string[];
@@ -398,6 +399,7 @@ export interface Job {
     salaryRange?: { min: number; max: number };
     workplaceType?: 'Remote' | 'Hybrid' | 'On-Site';
     location?: string;
+    locations?: string[];
     benefits?: string[];
     willingToConsiderNotes?: string;
     settlingOptions?: string[];

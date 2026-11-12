@@ -13,6 +13,7 @@ import {
 import { JobContentPreview, JobPreviewMode, stripMarkdownFormatting } from '../components/JobContentPreview';
 import { ReportJobModal } from '../components/ReportJobModal';
 import { IgnoreJobModal } from '../components/IgnoreJobModal';
+import { MultiLocationModal } from '../components/MultiLocationModal';
 import { CleanEmployerContactCard } from '../components/CleanEmployerContactCard';
 import { normalizeJobSalaryValue } from '../utils/salarySanitizer';
 import { parseAndSanitizeLocationAndWorkplace } from '../utils/locationAndWorkplaceSanitizer';
@@ -79,6 +80,7 @@ export const JobDescription = () => {
   const [showVersionHistoryModal, setShowVersionHistoryModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showIgnoreModal, setShowIgnoreModal] = useState(false);
+  const [showMultiLocationModal, setShowMultiLocationModal] = useState(false);
   const [clarificationTopic, setClarificationTopic] = useState('Compensation & Salary Transparency');
   const [clarificationMessage, setClarificationMessage] = useState('');
   const [isSendingClarification, setIsSendingClarification] = useState(false);
@@ -401,7 +403,7 @@ export const JobDescription = () => {
   }
 
   const missingSkillsList = skillComparison.requiredJobSkills.filter(s => !s.isMatched).map(s => s.name);
-  const locInfo = parseAndSanitizeLocationAndWorkplace(job);
+  const locInfo = parseAndSanitizeLocationAndWorkplace(job, profile);
 
   return (
     <div className="min-h-screen pt-20 sm:pt-24 pb-12 px-3 sm:px-6 md:px-8 w-full max-w-7xl mx-auto">
@@ -516,6 +518,17 @@ export const JobDescription = () => {
                {locInfo.workplaceSummary.includes('•') ? locInfo.workplaceSummary.split('•')[1].trim() + ' • ' : ''}
                {locInfo.location}
              </span>
+             {locInfo.isMultiLocation && (
+               <button
+                 type="button"
+                 onClick={() => setShowMultiLocationModal(true)}
+                 className="inline-flex items-center gap-1 px-2 py-0.5 ml-1 text-xs font-bold rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/70 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 transition-colors cursor-pointer border border-blue-200/80 dark:border-blue-700/80 focus-visible:ring-2 focus-visible:ring-blue-500 focus:outline-hidden"
+                 title={`View all ${locInfo.allLocations.length} locations considered by ${job.companyName}`}
+                 aria-label={`View all ${locInfo.allLocations.length} locations`}
+               >
+                 <span>+{locInfo.additionalLocationsCount} more</span>
+               </button>
+             )}
            </div>
 
            {locInfo.hasTravelRequirement && (
@@ -1486,6 +1499,18 @@ export const JobDescription = () => {
             title: job.title,
             companyName: job.companyName
           }}
+        />
+      )}
+
+      {showMultiLocationModal && (
+        <MultiLocationModal
+          isOpen={showMultiLocationModal}
+          onClose={() => setShowMultiLocationModal(false)}
+          jobTitle={job.title}
+          companyName={job.companyName}
+          allLocations={locInfo.allLocations}
+          matchedLocation={locInfo.matchedPreferredLocation}
+          workplaceType={locInfo.workplaceType}
         />
       )}
     </div>

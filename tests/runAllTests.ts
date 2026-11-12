@@ -17,6 +17,8 @@ import { runSalarySanitizerTests } from './unit/salarySanitizer.test';
 import { runLocationAndWorkplaceSanitizerTests } from './unit/locationAndWorkplaceSanitizer.test';
 import { runTextWhitespaceNormalizerTests } from './unit/textWhitespaceNormalizer.test';
 import { runCompanyLogoResolverTests } from './unit/companyLogoResolver.test';
+import { runDashboardSubNavTests } from './unit/dashboardSubNav.test';
+import { runExtensionArchitectureTests } from './unit/extensionArchitecture.test';
 
 console.log("\n=======================================================");
 console.log("Ascend ATS Comprehensive Safety-Critical Test Execution");
@@ -42,6 +44,8 @@ try {
   runLocationAndWorkplaceSanitizerTests();
   runTextWhitespaceNormalizerTests();
   runCompanyLogoResolverTests();
+  runDashboardSubNavTests();
+  runExtensionArchitectureTests();
   console.log("\n=======================================================");
   console.log("🟢 100% OF SUITES & ASSERTIONS SATISFIED ZERO FAILURES");
   console.log("=======================================================\n");

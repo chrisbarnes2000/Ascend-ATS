@@ -1,0 +1,303 @@
+/**
+ * Ascend ATS Extension - Injected Content Script Stylesheet
+ * Injected into LinkedIn, Indeed, and GovernmentJobs host pages.
+ * Fully scoped under .ascend-* and #ascend-* to prevent host page stylesheet collision.
+ */
+
+@import './tokens.css';
+
+/* Injected Page Action Button */
+.ascend-action-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background-color: var(--primary) !important;
+  color: var(--white) !important;
+  border: none !important;
+  padding: 8px 16px !important;
+  border-radius: var(--radius-xl) !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  transition: all var(--transition-normal) !important;
+  margin-left: 8px !important;
+  box-shadow: var(--shadow-primary) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  font-family: var(--font-sans) !important;
+  z-index: 9999 !important;
+  line-height: 1 !important;
+}
+
+.ascend-action-btn:hover {
+  background-color: var(--primary-hover) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--shadow-primary-lg) !important;
+}
+
+.ascend-action-btn:focus-visible {
+  outline: 2px solid var(--white) !important;
+  outline-offset: 2px !important;
+}
+
+.ascend-action-btn svg {
+  flex-shrink: 0 !important;
+}
+
+/* Floating Pre-Submission Review Modal Overlay */
+#ascend-review-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  z-index: 9999999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: var(--font-sans) !important;
+  box-sizing: border-box !important;
+  padding: 16px !important;
+}
+
+.ascend-modal {
+  background-color: var(--white) !important;
+  width: 100% !important;
+  max-width: 520px !important;
+  border-radius: 20px !important;
+  box-shadow: var(--shadow-xl) !important;
+  overflow: hidden !important;
+  animation: ascend-slide-up var(--transition-smooth) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: 1px solid var(--slate-200) !important;
+}
+
+@keyframes ascend-slide-up {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ascend-header {
+  padding: 18px 22px !important;
+  border-bottom: 1px solid var(--slate-100) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: var(--white) !important;
+}
+
+.ascend-brand {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.ascend-logo {
+  width: 32px !important;
+  height: 32px !important;
+  background-color: var(--primary) !important;
+  color: var(--white) !important;
+  border-radius: var(--radius-md) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 900 !important;
+  font-size: 18px !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+
+.ascend-brand h3 {
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: var(--slate-900) !important;
+  letter-spacing: -0.01em !important;
+}
+
+.ascend-brand span {
+  font-size: 11px !important;
+  color: var(--slate-500) !important;
+  font-weight: 700 !important;
+}
+
+.ascend-close {
+  background: none !important;
+  border: none !important;
+  font-size: 24px !important;
+  color: var(--slate-400) !important;
+  cursor: pointer !important;
+  padding: 4px 8px !important;
+  border-radius: var(--radius-sm) !important;
+  line-height: 1 !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.ascend-close:hover {
+  color: var(--slate-700) !important;
+  background-color: var(--slate-100) !important;
+}
+
+.ascend-body {
+  padding: 20px 22px !important;
+  overflow-y: auto !important;
+  max-height: 65vh !important;
+}
+
+.ascend-tier-box {
+  margin-bottom: 14px !important;
+  background: var(--slate-50) !important;
+  padding: 10px 12px !important;
+  border-radius: var(--radius-xl) !important;
+  border: 1px solid var(--slate-200) !important;
+}
+
+.ascend-tier-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 6px !important;
+}
+
+.ascend-tier-label {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  color: var(--slate-500) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.ascend-tier-badge {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  padding: 2px 8px !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--primary-light) !important;
+  color: var(--primary) !important;
+  text-transform: uppercase !important;
+}
+
+.ascend-tier-opts {
+  display: flex !important;
+  gap: 6px !important;
+}
+
+.ascend-tier-opt {
+  flex: 1 !important;
+  padding: 6px 4px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  border-radius: var(--radius-md) !important;
+  border: 1px solid var(--slate-300) !important;
+  background: var(--white) !important;
+  color: var(--slate-700) !important;
+  cursor: pointer !important;
+  transition: all var(--transition-fast) !important;
+  text-align: center !important;
+}
+
+.ascend-tier-opt.active {
+  border-color: var(--primary) !important;
+  background: var(--primary-light) !important;
+  color: var(--primary) !important;
+  font-weight: 800 !important;
+}
+
+.ascend-field {
+  margin-bottom: 14px !important;
+}
+
+.ascend-field label {
+  display: block !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  color: var(--slate-500) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  margin-bottom: 6px !important;
+}
+
+.ascend-field input, .ascend-field textarea {
+  width: 100% !important;
+  padding: 10px 14px !important;
+  border: 1px solid var(--slate-200) !important;
+  border-radius: var(--radius-lg) !important;
+  font-size: 13px !important;
+  color: var(--slate-800) !important;
+  box-sizing: border-box !important;
+  font-family: var(--font-sans) !important;
+  transition: border-color var(--transition-fast) !important;
+  background: var(--white) !important;
+}
+
+.ascend-field input:focus, .ascend-field textarea:focus {
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+.ascend-field textarea {
+  height: 100px !important;
+  resize: vertical !important;
+  line-height: 1.4 !important;
+}
+
+.ascend-hint {
+  font-size: 11px !important;
+  color: var(--slate-400) !important;
+  margin-top: 10px !important;
+  line-height: 1.4 !important;
+}
+
+.ascend-footer {
+  padding: 16px 22px !important;
+  background-color: var(--slate-50) !important;
+  border-top: 1px solid var(--slate-100) !important;
+  display: flex !important;
+  gap: 10px !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+}
+
+.ascend-btn-cancel {
+  background: none !important;
+  border: none !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  color: var(--slate-500) !important;
+  cursor: pointer !important;
+  padding: 8px 14px !important;
+  border-radius: var(--radius-md) !important;
+  transition: color var(--transition-fast) !important;
+}
+
+.ascend-btn-cancel:hover {
+  color: var(--slate-800) !important;
+}
+
+.ascend-btn-confirm {
+  background-color: var(--slate-900) !important;
+  color: var(--white) !important;
+  border: none !important;
+  padding: 9px 20px !important;
+  border-radius: var(--radius-lg) !important;
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  transition: all var(--transition-normal) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.ascend-btn-confirm:hover {
+  background-color: var(--slate-800) !important;
+  transform: translateY(-1px) !important;
+}
+
+.ascend-btn-confirm:disabled {
+  opacity: 0.65 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
